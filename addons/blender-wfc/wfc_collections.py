@@ -1,6 +1,7 @@
 import bpy
 import random
 from bpy.props import BoolProperty, EnumProperty, StringProperty, FloatProperty
+from .wfc_values import CollectionNames
 
 from .collectiontools.collection_creation import build_or_return_collection
 from .collectiontools import *
@@ -29,14 +30,14 @@ class OBJECT_OT_BuildDefaultCollections(bpy.types.Operator):
 #        return space.type == 'NODE_EDITOR'
 
     def execute(self, context):
-        prefix = "wfc_"
+        
         collections_to_create = [
-            'Grid',
-            'Primitives',
-            'Modules'
+            CollectionNames.Grid.value,
+            CollectionNames.Modules.value,
+            CollectionNames.Primitives.value
         ]
-
-        default_collections = [build_or_return_collection(prefix + collection_to_create, True) for collection_to_create in collections_to_create]
+        # TODO: var needed?
+        default_collections = [build_or_return_collection(collection_to_create, True) for collection_to_create in collections_to_create]
 
         return {'FINISHED'}
 

@@ -53,28 +53,3 @@ def main(context):
 
     print(get_cell(x, y))
     delete_cell(4, 3)
-
-
-class SimpleOperator(bpy.types.Operator):
-    """Tooltip"""
-    bl_idname = "object.simple_operator"
-    bl_label = "Simple Object Operator"
-
-    def execute(self, context):
-        main(context)
-        return {'FINISHED'}
-
-# Register and add to the "object" menu (required to also use F3 search "Simple Object Operator" for quick access).
-def register():
-    bpy.utils.register_class(SimpleOperator)
-
-
-def unregister():
-    bpy.utils.unregister_class(SimpleOperator)
-
-
-if __name__ == "__main__":
-    register()
-
-    # test call
-#    bpy.ops.object.simple_operator()
