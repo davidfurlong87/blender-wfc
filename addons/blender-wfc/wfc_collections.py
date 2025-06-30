@@ -17,17 +17,13 @@ class OBJECT_PT_BuildCollections(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(context.scene, "clear_collections")
+        # layout.prop(context.scene, "clear_collections")
         layout.operator("object.build_default_collections")
+
 class OBJECT_OT_BuildDefaultCollections(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "object.build_default_collections"
     bl_label = "build collections debug"
-
-#    @classmethod
-#    def poll(cls, context):
-#        space = context.space_data
-#        return space.type == 'NODE_EDITOR'
 
     def execute(self, context):
         
