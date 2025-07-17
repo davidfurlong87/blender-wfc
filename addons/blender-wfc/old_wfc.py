@@ -37,31 +37,7 @@
 # #     print('collection_not_found')
 # #     return False
 #
-# # def clear_collection_and_return(collection_name):
-#
-# #     bpy.ops.object.select_all(action='DESELECT')
-# #     old_modules = bpy.data.collections[collection_name].all_objects
-# #     for obj in old_modules:
-# #         bpy.data.objects[obj.name].select_set(True)
-# #             # TODO: delete module
-#
-# #             # TODO: unlink module
-# #             # bpy.context.scene. obj
-# #             # TODO: whatever else, clear datablock etc.
-# #     bpy.ops.object.delete()
-# #     return bpy.data.collections[collection_name]
-#
-#
-#
-#
-# def build_wfc_collection(collection_name):
-#     if (check_collection_exists(collection_name)):
-#         return clear_collection_and_return(collection_name)
-#     else:
-#         bpy.data.collections.new(collection_name)
-#         bpy.context.scene.collection.children.link(bpy.data.collections[collection_name])
-#         return bpy.data.collections[collection_name]
-#
+
 # def add_new_module(base_module, collection):
 #     for instance in range(4):
 #         # instantiate new module
@@ -125,11 +101,7 @@
 #         description="Name for Collection of prototypes.",
 #         default="wfc_base_modules"
 #     )
-#     bpy.types.Scene.wfc_modules_collection_name = bpy.props.StringProperty(
-#         name="Regex Pattern",
-#         description="Name for Collection of WFC modules.",
-#         default="wfc_modules"
-#     )
+
 #     bpy.types.Scene.wfc_grid_x = bpy.props.IntProperty(
 #         name="Grid Size X",
 #         description="Grid x size.",

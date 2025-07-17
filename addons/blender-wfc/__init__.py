@@ -28,47 +28,28 @@ bl_info = {
 }
 
 bl_category_name = "wfc"
+
+# TODO: IGNORED By the EnumProperty, which instead uses ROAD_STRAIGHT etc.
 PRIMITIVE_TYPES = [
     ('ROAD', "Road", "Road surface or path"),
     ('BUILDING', "Building", "Structure or building"),
     ('PAVEMENT', "Pavement", "Pedestrian walkway"),
 ]
 aspects = ["posX", "negX", "posY", "negY"]
+
+
+# class Connectors(Enum):
+#     Road = "Road"
+#     Building = "Building"
+#     PavementPos = "PavementPos"
+#     PavementNeg = "PavementNeg"
+
 CONNECTORS = [
     ('ROAD', "Road", ""),
     ('BUILDING', "Building", ""),
-    ('PAVEMENTPOS', "Roadpos", ""),
-    ('PAVEMENTNEG', "Roadneg", "")
+    ('PAVEMENTPOS', "PavemntPos", ""),
+    ('PAVEMENTNEG', "PavemntNeg", "")
 ]
-
-
-class ModuleProperties(bpy.types.PropertyGroup):
-    primitive_type: EnumProperty(
-        name="Real World Type",
-        description="Classification of object",
-        items=PRIMITIVE_TYPES
-    )
-
-    x_pos_connector: EnumProperty(
-        name="X Pos Connector",
-        description="",
-        items=CONNECTORS
-    )
-    x_neg_connector: EnumProperty(
-        name="X Neg Connector",
-        description="",
-        items=CONNECTORS
-    )
-    y_pos_connector: EnumProperty(
-        name="Y Pos Connector",
-        description="",
-        items=CONNECTORS
-    )
-    y_neg_connector: EnumProperty(
-        name="Y Neg Connector",
-        description="",
-        items=CONNECTORS
-    )
 
 
 class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
@@ -84,6 +65,9 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
 
         layout.operator("object.add_wfc_primitives")
         layout.operator("object.clear_wfc_primitives")
+        layout.operator("object.build_wfc_modules")
+        layout.operator("object.clear_wfc_modules")
+
         obj = context.object
         if obj:
             layout.prop(obj, "primitive_type")
@@ -91,6 +75,7 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
             layout.prop(obj, "x_neg_connector")
             layout.prop(obj, "y_pos_connector")
             layout.prop(obj, "y_neg_connector")
+
 
 
 class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
@@ -105,44 +90,129 @@ class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
         build_all_primitives(primitives_collection)
 
         prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
-        for prim in prims:
-            prim_type = random.choice(enum_items_keys)
-            prim.primitive_type = "PAVEMENT"
-            prim.x_pos_connector = "ROAD"
-            prim.x_neg_connector = "BUILDING"
-            prim.y_pos_connector = "PAVEMENTPOS"
-            prim.y_neg_connector = "PAVEMENTNEG"
-            # prim.data['PrimitiveType'] = prim_type
-            # prim.data['x_pos_connector'] = random.choice([item[0] for item in CONNECTORS])
-            # prim.data['x_neg_connector'] = bpy.types.Object.x_neg_connector.BUILDING
         return {'FINISHED'}
 
 
 class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "object.clear_wfc_primitives"
-    bl_label = "clear wfc debug"
+    bl_label = "Clear Primitives"
 
     def execute(self, context):
         delete_objects_and_meshes(
             get_all_objects_from_collection(CollectionNames.Primitives.value)
         )
         return {'FINISHED'}
+
+class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "object.build_wfc_modules"
+    bl_label = "Re/Generate Modules"
+
+    def execute(self, context):
+        # check if collections exist
+        objects = []
+        all_modules = {}
+        prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
+        if len(prims) > 0:
+            generate_modules(prims,get_collection_by_name(CollectionNames.Modules.value))
+        return {'FINISHED'}
+
+def generate_modules(object_list, modules_collection):
+    offset = Vector((100,0,0))
+    for primitive in object_list:
+        posX_placeholder = primitive.x_pos_connector
+        negX_placeholder = primitive.x_neg_connector
+        posY_placeholder = primitive.y_pos_connector
+        negY_placeholder = primitive.y_neg_connector
+        # posX_placeholder = base_object["PosX_Connector"]
+        # negX_placeholder = base_object["NegX_Connector"]
+        # posY_placeholder = base_object["PosY_Connector"]
+        # negY_placeholder = base_object["NegY_Connector"]
+        all_modules = []
+        for rotation in range(4):
+            match rotation:
+                case 0:
+                    module_data = bpy.data.meshes.new(name=primitive.name + f"_{rotation}")
+                    module_obj = bpy.data.objects.new(primitive.name + f"_{rotation}", module_data)
+                    link_object_to_single_collection(module_obj, modules_collection)
+                    print(f"Current obj: {module_obj.name}")
+
+                    module_obj.x_pos_connector = primitive.x_pos_connector
+                    module_obj.x_neg_connector = primitive.x_neg_connector
+                    module_obj.y_pos_connector = primitive.y_pos_connector
+                    module_obj.y_neg_connector = primitive.y_neg_connector
+                    print(f"Prim posx: {primitive.x_pos_connector}\tCurrent obj posx: {module_obj.x_pos_connector}")
+                    all_modules.append(module_obj)
+                    posX_placeholder = module_obj.y_neg_connector
+                    negX_placeholder = module_obj.y_pos_connector
+                    posY_placeholder = module_obj.x_pos_connector
+                    negY_placeholder = module_obj.x_neg_connector
+                # posX_placeholder = new_obj["NegY_Connector"]
+            # negX_placeholder = new_obj["PosY_Connector"]
+            # posY_placeholder = new_obj["PosX_Connector"]
+            # negY_placeholder = new_obj["NegX_Connector"] 
+                    
+                case default:
+                    module_data = bpy.data.meshes.new(name=primitive.name + f"_{rotation}")
+                    module_obj = bpy.data.objects.new(primitive.name + f"_{rotation}", module_data)
+                    module_obj.x_pos_connector = posX_placeholder 
+                    module_obj.x_neg_connector = negX_placeholder
+                    module_obj.y_pos_connector = posY_placeholder 
+                    module_obj.y_neg_connector = negY_placeholder
+                    link_object_to_single_collection(module_obj, modules_collection)
+                    print(f"Current obj: {module_obj.name} \tposx: {module_obj.x_pos_connector}" )
+                    print(f"Previous Object: {all_modules[-1].name} \t posx: {all_modules[-1].x_pos_connector}")
+                    all_modules.append(module_obj)
+                    posX_placeholder = module_obj.y_neg_connector
+                    negX_placeholder = module_obj.y_pos_connector
+                    posY_placeholder = module_obj.x_pos_connector
+                    negY_placeholder = module_obj.x_neg_connector
+
+
+
+                    module_obj.location += base_object.location + Vector(((rotation * 20) + rotation * 20, 0, 0)) + offset
+                    module_obj.rotation_euler = (0,0,radians(rotation * 90))
+
+            # new_obj["PosX_Connector"] = posX_placeholder
+            # new_obj["NegX_Connector"] = negX_placeholder
+            # new_obj["PosY_Connector"] = posY_placeholder
+            # new_obj["NegY_Connector"] = negY_placeholder
+            
+
+            
+            # target_collection.objects.link(new_obj)
+
+
+class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "object.clear_wfc_modules"
+    bl_label = "Clear Modules"
+
+    def execute(self, context):
+        delete_objects_and_meshes(
+            get_all_objects_from_collection(CollectionNames.Modules.value)
+        )
+        return {'FINISHED'}
+
+
 import bpy
 from enum import Enum
 from .wfc_values import module_size
 
 
 class Primitive:
-    def __init__(self, name, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector):
+    def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector):
         self.name = name
+        self.primitive_type = primitive_type
         self.verts = verts
         self.faces = faces
         self.mat_indices = mat_indices
         self.material_names = material_names
         self.pos_x_connector =pos_x_connector
         self.neg_x_connector =neg_x_connector
-
+        self.pos_y_connector =pos_y_connector
+        self.neg_y_connector =neg_y_connector
 
 class MaterialPrimitives(Enum):
     Building = "Building_Primitive"
@@ -155,6 +225,11 @@ class PrimitiveModules(Enum):
     Pavement = "Pavement_Primitive"
     Road = "Road_Primitive"
 
+
+def get_rotated_socket_from_primitive(primitive, rotation):
+    match rotation:
+        case 0:
+            print("# return new primitive")
 
 def build_all_primitives(primitives_collection):
     for material_name in [
@@ -175,17 +250,23 @@ def build_all_primitives(primitives_collection):
 
     building_primitive = Primitive(
         name=PrimitiveModules.Building.value,
+        primitive_type="BUILDING",
         verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, 0.0), (-4.0, 4.0, -0.4), (-4.0, 4.0, 0.0), (4.0, -4.0, -0.4),
                (4.0, -4.0, 0.0), (4.0, 4.0, -0.4), (4.0, 4.0, 0.0)],
         faces=[(0, 1, 3, 2), (6, 7, 5, 4), (2, 3, 7, 6), (4, 5, 1, 0), (7, 3, 1, 5)],
         mat_indices=[0, 0, 0, 0, 0],
         material_names=[
             MaterialPrimitives.Building.value
-        ]
+        ],
+        pos_x_connector = "BUILDING",
+        neg_x_connector = "BUILDING",
+        pos_y_connector = "BUILDING",
+        neg_y_connector = "BUILDING"
     )
 
-    pavement_primitive = Primitive(
+    pavement_primitive = Primitive(  
         name=PrimitiveModules.Pavement.value,
+        primitive_type="PAVEMENT",
         verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, -0.2), (-4.0, 4.0, -0.4), (-4.0, 4.0, -0.2), (4.0, -4.0, -0.4),
                (4.0, -4.0, -0.2), (4.0, 4.0, -0.4), (4.0, 4.0, -0.2), (0.0, 4.0, -0.4), (0.0, 4.0, -0.2),
                (0.0, -4.0, -0.4), (0.0, -4.0, -0.2), (-4.0, -4.0, 0.0), (-4.0, 4.0, 0.0),
@@ -197,18 +278,27 @@ def build_all_primitives(primitives_collection):
         material_names=[
             MaterialPrimitives.Pavement.value,
             MaterialPrimitives.Road.value
-        ]
+        ],
+        pos_x_connector = "ROAD",
+        neg_x_connector = "BUILDING",
+        pos_y_connector = "PAVEMENTNEG",
+        neg_y_connector = "PAVEMENTPOS"
     )
 
     road_primitive = Primitive(
         name=PrimitiveModules.Road.value,
+        primitive_type="ROAD_STRAIGHT",
         verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, -0.2), (-4.0, 4.0, -0.4), (-4.0, 4.0, -0.2), (4.0, -4.0, -0.4),
                (4.0, -4.0, -0.2), (4.0, 4.0, -0.4), (4.0, 4.0, -0.2)],
         faces=[(0, 1, 3, 2), (6, 7, 5, 4), (2, 3, 7, 6), (4, 5, 1, 0), (2, 6, 4, 0), (7, 3, 1, 5)],
         mat_indices=[0, 0, 0, 0, 0, 0],
         material_names=[
             MaterialPrimitives.Road.value
-        ]
+        ],
+        pos_x_connector = "ROAD",
+        neg_x_connector = "ROAD",
+        pos_y_connector = "ROAD",
+        neg_y_connector = "ROAD"
     )
 
     for i, primitive in enumerate([building_primitive, pavement_primitive, road_primitive]):
@@ -230,6 +320,12 @@ def build_primitives(primitive, primitives_collection, location):
 
     for i, poly in enumerate(mesh_data.polygons):
         poly.material_index = primitive.mat_indices[i]
+    
+    mesh_obj.primitive_type = primitive.primitive_type
+    mesh_obj.x_pos_connector = primitive.pos_x_connector
+    mesh_obj.x_neg_connector = primitive.neg_x_connector
+    mesh_obj.y_pos_connector = primitive.pos_y_connector
+    mesh_obj.y_neg_connector = primitive.neg_y_connector
 
 def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
     old_material = bpy.data.materials.get(material_name)
@@ -267,6 +363,8 @@ enum_items_keys = [
 OPERATORS = [
                 OBJECT_OT_AddWfcPrimitives,
                 OBJECT_OT_ClearWfcPrimitives,
+                OBJECT_OT_BuildWfcModules,
+                OBJECT_OT_ClearWfcModules
                 # OBJECT_OT_AddWfcText,
                 # OBJECT_OT_ClearWfcText
 
@@ -277,7 +375,7 @@ PANELS = [
 
          ] + COLLECTION_PANELS
 
-TYPE_CLASSES = [ModuleProperties]
+TYPE_CLASSES = []
 
 REGISTER_CLASSES = OPERATORS + PANELS + TYPE_CLASSES
 
@@ -286,7 +384,6 @@ def register():
     for r_class in REGISTER_CLASSES:
         bpy.utils.register_class(r_class)
 
-    # bpy.types.Object.my_props = PointerProperty(type=ModuleProperties)
 
     bpy.types.Object.primitive_type = bpy.props.EnumProperty(
         name="Primitive",

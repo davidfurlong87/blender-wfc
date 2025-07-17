@@ -82,40 +82,8 @@
 #
 #     delete_cell(4, 3)
 #
-#
-# class SimpleOperator(bpy.types.Operator):
-#     """d"""
-#     bl_idname = "object.simple_operator"
-#     bl_label = "Simple Object Operator"
-#
-#     @classmethod
-#     def poll(cls, context):
-#         return context.active_object is not None
-#
-#     def execute(self, context):
-#         main(context)
-#         return {'FINISHED'}
-#
-#
-# class LayoutDemoPanel(bpy.types.Panel):
-#     """Creates a Panel in the scene context of the properties editor"""
-#     bl_label = "WFC"
-#     bl_idname = "SCENE_PT_layout"
-#     bl_space_type = 'PROPERTIES'
-#     bl_region_type = 'WINDOW'
-#     bl_context = "scene"
-#
-#     def draw(self, context):
-#         layout = self.layout
-#
-#         scene = context.scene
-#
-#         # Big render button
-#         layout.label(text="Big Button:")
-#         row = layout.row()
-#         row.scale_y = 3.0
-#         row.operator("object.simple_operator")
-#
+
+
 #
 # def register():
 #     bpy.utils.register_class(SimpleOperator)

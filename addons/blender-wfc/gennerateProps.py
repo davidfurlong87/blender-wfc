@@ -123,34 +123,34 @@ def generate_default_prefabs(object_list):
             obj["NegY_Connector"] = ""
         current_id += 1
             
-def generate_variants(object_list, target_collection_name):
-    target_collection = get_collection(target_collection_name)
-    offset = Vector((100,0,0))
-    for base_object in object_list:
-        posX_placeholder = base_object["PosX_Connector"]
-        negX_placeholder = base_object["NegX_Connector"]
-        posY_placeholder = base_object["PosY_Connector"]
-        negY_placeholder = base_object["NegY_Connector"]
+# def generate_variants(object_list, target_collection_name):
+#     target_collection = get_collection(target_collection_name)
+#     offset = Vector((100,0,0))
+#     for base_object in object_list:
+#         posX_placeholder = base_object["PosX_Connector"]
+#         negX_placeholder = base_object["NegX_Connector"]
+#         posY_placeholder = base_object["PosY_Connector"]
+#         negY_placeholder = base_object["NegY_Connector"]
         
-        for rotation in range(4):
-            new_obj = base_object.copy()
-            new_obj.name = base_object.name + f"_{rotation}"
-            new_obj.data = base_object.data.copy()
-            new_obj["ID"] = new_obj["ID"] + rotation
-            new_obj.location += base_object.location + Vector(((rotation * 20) + rotation * 20, 0, 0)) + offset
-            new_obj.rotation_euler = (0,0,radians(rotation * 90))
+#         for rotation in range(4):
+#             new_obj = base_object.copy()
+#             new_obj.name = base_object.name + f"_{rotation}"
+#             new_obj.data = base_object.data.copy()
+#             new_obj["ID"] = new_obj["ID"] + rotation
+#             new_obj.location += base_object.location + Vector(((rotation * 20) + rotation * 20, 0, 0)) + offset
+#             new_obj.rotation_euler = (0,0,radians(rotation * 90))
 
-            new_obj["PosX_Connector"] = posX_placeholder
-            new_obj["NegX_Connector"] = negX_placeholder
-            new_obj["PosY_Connector"] = posY_placeholder
-            new_obj["NegY_Connector"] = negY_placeholder
+#             new_obj["PosX_Connector"] = posX_placeholder
+#             new_obj["NegX_Connector"] = negX_placeholder
+#             new_obj["PosY_Connector"] = posY_placeholder
+#             new_obj["NegY_Connector"] = negY_placeholder
             
-            posX_placeholder = new_obj["NegY_Connector"]
-            negX_placeholder = new_obj["PosY_Connector"]
-            posY_placeholder = new_obj["PosX_Connector"]
-            negY_placeholder = new_obj["NegX_Connector"] 
+#             posX_placeholder = new_obj["NegY_Connector"]
+#             negX_placeholder = new_obj["PosY_Connector"]
+#             posY_placeholder = new_obj["PosX_Connector"]
+#             negY_placeholder = new_obj["NegX_Connector"] 
             
-            target_collection.objects.link(new_obj)
+#             target_collection.objects.link(new_obj)
 
 def check_neighbours_match(neighbourA, neighbourB):
     if neighbourA == Socket.ROAD_CENTRE.value and neighbourB == Socket.ROAD_CENTRE.value:
