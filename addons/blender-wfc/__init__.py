@@ -1,4 +1,5 @@
 # from wfctools import *
+from math import radians
 from bpy.props import BoolProperty, IntProperty, StringProperty
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 import sys
@@ -9,7 +10,7 @@ import sys
 # importlib.reload(wfc_collections)
 #
 # importlib.reload(wfctools)
-from .wfc_values import bl_category_name, CollectionNames
+from .wfc_values import bl_category_name, CollectionNames, module_size
 from .collectiontools.collection_creation import *
 # from .primitive_generation import build_all_primitives
 
@@ -119,70 +120,55 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
         return {'FINISHED'}
 
 def generate_modules(object_list, modules_collection):
-    offset = Vector((100,0,0))
-    for primitive in object_list:
+    starting_position = Vector((200,200,0))
+    offset = module_size * 2
+    all_modules = []
+    for i, primitive in enumerate(object_list):
+        primitive_data = all_primitives[primitive.name]
         posX_placeholder = primitive.x_pos_connector
         negX_placeholder = primitive.x_neg_connector
         posY_placeholder = primitive.y_pos_connector
         negY_placeholder = primitive.y_neg_connector
-        # posX_placeholder = base_object["PosX_Connector"]
-        # negX_placeholder = base_object["NegX_Connector"]
-        # posY_placeholder = base_object["PosY_Connector"]
-        # negY_placeholder = base_object["NegY_Connector"]
-        all_modules = []
+
         for rotation in range(4):
             match rotation:
-                case 0:
-                    module_data = bpy.data.meshes.new(name=primitive.name + f"_{rotation}")
-                    module_obj = bpy.data.objects.new(primitive.name + f"_{rotation}", module_data)
-                    link_object_to_single_collection(module_obj, modules_collection)
-                    print(f"Current obj: {module_obj.name}")
+                # case 0:
+                    # module_data = bpy.data.meshes.new(name=primitive.name + f"_{rotation}")
+                    # module_obj = bpy.data.objects.new(primitive.name + f"_{rotation}", module_data)
+                    # module_data.from_pydata(primitive_data.verts, [], primitive_data.faces)
+                    # module_data.update()
+                    # link_object_to_single_collection(module_obj, modules_collection)
+                    # # print(f"Current obj: {module_obj.name}")
 
-                    module_obj.x_pos_connector = primitive.x_pos_connector
-                    module_obj.x_neg_connector = primitive.x_neg_connector
-                    module_obj.y_pos_connector = primitive.y_pos_connector
-                    module_obj.y_neg_connector = primitive.y_neg_connector
-                    print(f"Prim posx: {primitive.x_pos_connector}\tCurrent obj posx: {module_obj.x_pos_connector}")
-                    all_modules.append(module_obj)
-                    posX_placeholder = module_obj.y_neg_connector
-                    negX_placeholder = module_obj.y_pos_connector
-                    posY_placeholder = module_obj.x_pos_connector
-                    negY_placeholder = module_obj.x_neg_connector
-                # posX_placeholder = new_obj["NegY_Connector"]
-            # negX_placeholder = new_obj["PosY_Connector"]
-            # posY_placeholder = new_obj["PosX_Connector"]
-            # negY_placeholder = new_obj["NegX_Connector"] 
-                    
+                    # module_obj.x_pos_connector = primitive.x_pos_connector
+                    # module_obj.x_neg_connector = primitive.x_neg_connector
+                    # module_obj.y_pos_connector = primitive.y_pos_connector
+                    # module_obj.y_neg_connector = primitive.y_neg_connector
+                    # all_modules.append(module_obj)
+                    # posX_placeholder = module_obj.y_neg_connector
+                    # negX_placeholder = module_obj.y_pos_connector
+                    # posY_placeholder = module_obj.x_pos_connector
+                    # negY_placeholder = module_obj.x_neg_connector
+
                 case default:
                     module_data = bpy.data.meshes.new(name=primitive.name + f"_{rotation}")
                     module_obj = bpy.data.objects.new(primitive.name + f"_{rotation}", module_data)
+                    module_data.from_pydata(primitive_data.verts, [], primitive_data.faces)
+                    module_data.update()
                     module_obj.x_pos_connector = posX_placeholder 
                     module_obj.x_neg_connector = negX_placeholder
                     module_obj.y_pos_connector = posY_placeholder 
                     module_obj.y_neg_connector = negY_placeholder
                     link_object_to_single_collection(module_obj, modules_collection)
-                    print(f"Current obj: {module_obj.name} \tposx: {module_obj.x_pos_connector}" )
-                    print(f"Previous Object: {all_modules[-1].name} \t posx: {all_modules[-1].x_pos_connector}")
+                    # print(f"Current obj: {module_obj.name} \tposx: {module_obj.x_pos_connector}" )
+                    # print(f"Previous Object: {all_modules[-1].name} \t posx: {all_modules[-1].x_pos_connector}")
                     all_modules.append(module_obj)
                     posX_placeholder = module_obj.y_neg_connector
                     negX_placeholder = module_obj.y_pos_connector
                     posY_placeholder = module_obj.x_pos_connector
                     negY_placeholder = module_obj.x_neg_connector
-
-
-
-                    module_obj.location += base_object.location + Vector(((rotation * 20) + rotation * 20, 0, 0)) + offset
+                    module_obj.location += starting_position + Vector(((rotation * module_size + (rotation * offset)) , (i*module_size+offset), 0))
                     module_obj.rotation_euler = (0,0,radians(rotation * 90))
-
-            # new_obj["PosX_Connector"] = posX_placeholder
-            # new_obj["NegX_Connector"] = negX_placeholder
-            # new_obj["PosY_Connector"] = posY_placeholder
-            # new_obj["NegY_Connector"] = negY_placeholder
-            
-
-            
-            # target_collection.objects.link(new_obj)
-
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
     """Tooltip"""
@@ -230,7 +216,7 @@ def get_rotated_socket_from_primitive(primitive, rotation):
     match rotation:
         case 0:
             print("# return new primitive")
-
+all_primitives = {}
 def build_all_primitives(primitives_collection):
     for material_name in [
         MaterialPrimitives.Building.value,
@@ -311,7 +297,7 @@ def build_primitives(primitive, primitives_collection, location):
     mesh_obj = bpy.data.objects.new(primitive.name, mesh_data)
     mesh_obj.location = location
     primitives_collection.objects.link(mesh_obj)
-
+    all_primitives[primitive.name] = primitive
     mesh_data.from_pydata(primitive.verts, [], primitive.faces)
     mesh_data.update()
 
