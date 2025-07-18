@@ -1,4 +1,5 @@
 .DS_Store
 \.idea
-*.blend*
+# *.blend*
 __pycache__
+*wfc_dev.blend1
