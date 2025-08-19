@@ -2,4 +2,6 @@
 \.idea
 # *.blend*
 __pycache__
+*.blend
 *wfc_dev.blend1
+addons/blender-wfc/wfc_dev.blend

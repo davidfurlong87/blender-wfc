@@ -36,6 +36,8 @@ class NeighbourList(Enum):
     POS_Y = "Neighbours_PosY"
     NEG_Y = "Neighbours_NegY"
 
+# class AxisInformation:
+#     def __init__(self, name, opposite_axis, connector_name, opposite_connector_name, opposite):
 
 # ----------------------------------------------
 # Define Constants
