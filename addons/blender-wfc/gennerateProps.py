@@ -12,17 +12,17 @@ from mathutils import Vector
 # Define Enums
 # ----------------------------------------------
 
-class Socket(Enum):
-    ROAD_CENTRE = "Road_Centre"
-    PAVEMENT_POS = "Pavement_Positive"
-    PAVEMENT_NEG = "Pavement_Negative"
-    BUILDING = "Building"
+# class Socket(Enum):
+#     ROAD_CENTRE = "Road_Centre"
+#     PAVEMENT_POS = "Pavement_Positive"
+#     PAVEMENT_NEG = "Pavement_Negative"
+#     BUILDING = "Building"
 
-class Axis(Enum):
-    POS_X = "PosX"
-    NEG_X = "NegX"
-    POS_Y = "PosY"
-    NEG_Y = "NegY"
+# class Axis(Enum):
+#     POS_X = "PosX"
+#     NEG_X = "NegX"
+#     POS_Y = "PosY"
+#     NEG_Y = "NegY"
 
 class Connector(Enum):
     POS_X = "PosX_Connector"
@@ -42,6 +42,13 @@ class NeighbourList(Enum):
 # ----------------------------------------------
 # Define Constants
 # ----------------------------------------------
+
+valid_pairs_dictionary = {
+    Socket.BUILDING: [Socket.BUILDING],
+    Socket.PAVEMENT_POS: [Socket.PAVEMENT_NEG],
+    Socket.PAVEMENT_NEG: [Socket.PAVEMENT_POS],
+    Socket.ROAD_CENTRE: [Socket.ROAD_CENTRE]
+}
 
 axisDictionary = {
     Axis.POS_X: {
@@ -83,12 +90,12 @@ prefab_variant_collection_name = "PrefabVariants"
 # ----------------------------------------------
 
 def get_collection(collection_name):
-    scene = bpy.context.scene
+    # scene = bpy.context.scene
     if collection_name in bpy.data.collections:
         collection = bpy.data.collections[collection_name]
     else:
         collection = bpy.data.collections.new(collection_name)
-        scene.collection.children.link(collection)
+        bpy.context.scene.collection.children.link(collection)
     return collection
 
 

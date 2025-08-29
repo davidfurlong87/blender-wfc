@@ -1,8 +1,13 @@
-# from wfctools import *
+import bpy
+import random
+from bpy.props import BoolProperty, EnumProperty, StringProperty, FloatProperty, PointerProperty
+
 from math import radians
 from bpy.props import BoolProperty, IntProperty, StringProperty
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 import sys
+from .wfc_classes import WFCModule, WFCCoordinates, WFCCell
+from enum import Enum
 
 # if "wfc_collections" in locals():
 # import importlib
@@ -10,13 +15,11 @@ import sys
 # importlib.reload(wfc_collections)
 #
 # importlib.reload(wfctools)
+
 from .wfc_values import bl_category_name, CollectionNames, module_size
 from .collectiontools.collection_creation import *
 # from .primitive_generation import build_all_primitives
 
-import bpy
-import random
-from bpy.props import BoolProperty, EnumProperty, StringProperty, FloatProperty, PointerProperty
 
 bl_info = {
     "name": "wfc",
@@ -111,15 +114,15 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
     bl_label = "Re/Generate Modules"
 
     def execute(self, context):
-        # check if collections exist
-        objects = []
-        # all_modules = {}
+        # TODO: check if collections exist
+
         prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
         if len(prims) > 0:
             generate_modules(prims,get_collection_by_name(CollectionNames.Modules.value))
         return {'FINISHED'}
 
 all_modules = []
+all_modules_classes = []
 def generate_modules(object_list, modules_collection):
     starting_position = Vector((-50,-50,0))
     offset = module_size * 2
@@ -134,8 +137,9 @@ def generate_modules(object_list, modules_collection):
         for rotation in range(4):
             match rotation:
                 case default:
-                    module_data = bpy.data.meshes.new(name=primitive.name + f"_{rotation}")
-                    module_obj = bpy.data.objects.new(primitive.name + f"_{rotation}", module_data)
+                    module_name = primitive.name + f"_{rotation}"
+                    module_data = bpy.data.meshes.new(module_name)
+                    module_obj = bpy.data.objects.new(module_name, module_data)
                     module_data.from_pydata(primitive_data.verts, [], primitive_data.faces)
                     module_data.update()
                     module_obj.x_pos_connector = posX_placeholder 
@@ -143,8 +147,19 @@ def generate_modules(object_list, modules_collection):
                     module_obj.y_pos_connector = posY_placeholder 
                     module_obj.y_neg_connector = negY_placeholder
                     link_object_to_single_collection(module_obj, modules_collection)
-                    # TODO: Build modules class, give it a number for weight, add that as an object with the moduel obj
+                    # TODO: Implement weights system
                     all_modules.append(module_obj)
+                    all_modules_classes.append(
+                        WFCModule(
+                            name = module_name,
+                            obj_source = module_obj,
+                            module_weight=1,
+                            pos_x = posX_placeholder,
+                            neg_x= negX_placeholder, 
+                            pos_y = posY_placeholder, 
+                            neg_y = negY_placeholder
+                        )
+                    )
                     posX_placeholder = module_obj.y_neg_connector
                     negX_placeholder = module_obj.y_pos_connector
                     posY_placeholder = module_obj.x_pos_connector
@@ -159,6 +174,7 @@ class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
 
     def execute(self, context):
         all_modules.clear
+        all_modules_classes.clear
         grid_cells = get_all_objects_from_collection(CollectionNames.Modules.value)
         for obj in grid_cells:
             delete_object_by_name(obj.name)
@@ -169,9 +185,7 @@ class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
         return {'FINISHED'}
 
 
-import bpy
-from enum import Enum
-from .wfc_values import module_size
+
 
 
 class Primitive:
@@ -217,7 +231,7 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
     def execute(self, context):
 
         grid_collection = get_collection_by_name(CollectionNames.Grid.value)
-        build_wfc_grid(grid_collection, all_modules)
+        build_wfc_grid(grid_collection, all_modules_classes)
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
@@ -250,9 +264,8 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
         print(f"remaining keys: {len([k for k in debug_all_grid_cells])}")
 
 
-        uncollapsed_cells = [cell for cell in all_grid_cells.values() if cell.isCollapsed == False]
+        uncollapsed_cells = [cell for cell in debug_all_grid_cells.values() if cell.isCollapsed == False]
         print(f"uncollapsed cells: {len(uncollapsed_cells)}")
-        # random_key = random.choice([k for k in debug_all_grid_cells])
         # TODO: Combine the below, have teh cell_obj be a parameter of cell.
         cell = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
         debug_coords = cell.get_coords_set()
@@ -265,6 +278,8 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
         print(f"Cell collapsed: {cell.isCollapsed}")
         print(f"Module chosen: {cell.return_collapsed_module()}")
         del debug_all_grid_cells[debug_coords]
+        del debug_all_grid_holders[debug_coords]
+
         print(f"remaining keys: {len([k for k in debug_all_grid_cells])}")
         print("-----------------------")
 
@@ -287,8 +302,43 @@ def duplicate_and_move_and_return(target_obj, target_location):
     duplicate.location = target_location
     return duplicate
 
-# UPNEXT -> input the collapsed cell and propagate.
-def propagate():
+def get_all_available_sockets_at_axis(cell, axis):
+    available_sockets = []
+    for module in cell.possibleModules:
+        match axis:
+            case Axis.POS_X:
+                available_sockets.append(module.pos_x)
+            case Axis.NEG_X:
+                available_sockets.append(module.neg_x)
+            case Axis.POS_Y:
+                available_sockets.append(module.pos_y)
+            case Axis.NEG_Y:
+                available_sockets.append(module.neg_y)
+
+# UPNEXT
+def propagate(collapsed_cell):
+    # initiate list of cells affected
+    affected_cells = [collapsed_cell]
+    # while that list has something
+    while affected_cells >0:
+        # pick an affected cell
+        affected_cell = affected_cells[0]
+        # loop through axes
+        for axis in [Axis.POS_X, Axis.NEG_X, Axis.POS_Y, Axis.NEG_Y]:
+            # has an uncollapsed neighbour at that axis?
+            possible_neighbour_coords = (affected_cell.posX, )
+                # get its uncollapsed neighbour neighbour at that axis
+
+            # get list of  remaining modules for affected cell
+
+            # from above, build list of possible neighbour modules at input axis
+
+            
+
+            # get the opposite axis
+
+            # loop through that neighbours
+
 
 
 
@@ -309,19 +359,8 @@ def collapse_process():
     # Throw exception below if not
     if (len(all_grid_cells) != 0):
         uncollapsed_cells = [cell_value for cell_value in all_grid_cells.values()]
-        # current_fewest_modules = 9999
-        # cells_with_fewest_modules = []
         while len(uncollapsed_cells) != 0:
-            # for cell in uncollapsed_cells:
-            #     if cell.number_of_modules_remaining() < current_fewest_modules:
-            #         # New record low found. Set the current lowest amount to this, 
-            #         # reassign possible cel list to a new list with just this
-            #         current_fewest_modules = cell.number_of_modules_remaining()
-            #         cells_with_fewest_modules = [cell]
-            #     elif cell.number_of_modules_remaining() == current_fewest_modules:
-            #         cells_with_fewest_modules.append(cell)
             cell_to_collapse = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
-            # cell_to_collapse = random.choice(cells_with_fewest_modules)
             collapse_cell(cell_to_collapse)
             uncollapsed_cells.remove(cell_to_collapse)
 
@@ -335,7 +374,7 @@ def collapse_cell(cell):
     # TODO: Repalce below with def get_highest_weight_modules(modules)
     scored_modules = [(build_module_score(default_weight), module) for module in cell.possibleModules]
     module_to_return = scored_modules[0]
-    # TODO: Magioc numbers, replace with scored module class
+    # TODO: Magioc numbers, replace with scored module class -> if current_s_module.score > ...
     for scored_module in scored_modules:
         if scored_module[0] > module_to_return[0]:
             module_to_return = scored_module
@@ -343,19 +382,12 @@ def collapse_cell(cell):
     cell.possibleModules = [module_to_return[1]]
     print(f"Cell modules now: {cell.number_of_modules_remaining()}")
     cell.isCollapsed = True
-    # Create mesh deplicate from possible module
-    # send it cell_obj transform
-    x = cell.posX
+    module_obj = module_to_return[1].obj_source
     placement_location = (cell.posX * (module_size), cell.posY * (module_size), 0)
-    collapsed_cell_obj = duplicate_and_move_and_return(module_to_return[1], placement_location)
-    collapsed_cell_obj.name = name = f"{cell.posX:02d}_{cell.posY:02d}_collapsed"
-    link_object_to_single_collection(collapsed_cell_obj, get_collection_by_name(CollectionNames.Grid.value))
+    collapsed_cell_obj = duplicate_and_move_and_return(module_obj, placement_location)
+    collapsed_cell_obj.name = f"{cell.posX:02d}_{cell.posY:02d}-{module_obj.name}"
+    link_object_to_single_collection(collapsed_cell_obj, get_collection_by_name(CollectionNames.Grid.value))    
 
-
-class WFC_Modules:
-    def __init__(self, module_obj, module_weight):
-        self.module_obj = module_obj
-        self.module_weight = module_weight
 
 # def get_highest_weight_modules(modules):
 #     default_weight = 1
@@ -365,46 +397,8 @@ class WFC_Modules:
 def build_module_score(module_weight):
     return module_weight * random.randint(1, 101)
 
-# TODO:rename posX/Y. this looks like its an axis, just x/y is fine
-class WFCCoordinates:
-    def __init__(self, posX, posY):
-        self.posX = posX
-        self.posY = posY
 
-    def __str__(self):
-        return f"{self.posX, self.posY}"
     
-class WFCCell:
-    def __init__(self, posX, posY, possibleModules):
-        self.posX = posX
-        self.posY = posY
-        self.coordinates = WFCCoordinates(posX, posY)
-        # self.possibleVariantIds = possibleVariantIds[:]
-        self.possibleModules = possibleModules[:]
-        self.isCollapsed = False
-        # TODO: Implement the below
-        # self.cell_obj = cell_obj
-
-    def __str__(self):
-        return f"{self.posX, self.posY}"
-#        return f"{self.posX}/{self.posY}"
-
-    def get_coords(self):
-        return [self.posX, self.posY]
-    
-    def get_coords_set(self):
-        return (self.posX, self.posY)
-    
-    def number_of_modules_remaining(self):
-        return len(self.possibleModules)
-    
-    def return_collapsed_module(self):
-        print(f"(self.number_of_modules_remaining): {(self.number_of_modules_remaining())}")
-        if (self.isCollapsed):
-            return self.possibleModules[0]
-        else:
-            # TODO: EXCEPTION
-            print(f"Cell {self.posX, self.posY} NOT YET COLLAPSED")
 
 all_grid_cells = {}
 debug_all_grid_cells = {}
@@ -414,18 +408,23 @@ debug_all_grid_holders = {}
 
 
 def build_wfc_grid(grid_collection, all_wfc_modules):
+
     x_size = 10
     y_size = 10
     for x in range(x_size):
         for y in range(y_size):
-            cell = WFCCell(x, y, all_wfc_modules)
+            cell = WFCCell(
+                posX = x, 
+                posY = y, 
+                possibleModules=all_wfc_modules
+                )
             all_grid_cells[(x,y)] = cell
             # TODO: Delete when not needed
             debug_all_grid_cells[(x,y)] = cell
 
-
+    # UPNEXT -> use all_modules_classes here, search for older references to all_modules, swap to new system
+    # TODO: instead of looping through size a second time, instead take the x,y data object and multiply that by moduel size
     for x in range(x_size):
-        # all_grid_holders[x,y] = {}
         for y in range(y_size):
             cell_location = (x * (module_size), y * (module_size), 0)
 
@@ -433,21 +432,33 @@ def build_wfc_grid(grid_collection, all_wfc_modules):
             cell_obj = bpy.context.active_object
 
             cell_obj.remaining_modules = len(all_wfc_modules)
-            # bpy.ops.object.empty_add(location=location)
-            # name = f"{x:02d}_{y:02d}_cell"
+
             cell_obj.name = f"{x:02d}_{y:02d}_cell"
             link_object_to_single_collection(cell_obj, grid_collection)
-            
+            # USE WFCCEll?
             all_grid_holders[(x, y)] = cell_obj
             # TODO: Delete when not needed
             debug_all_grid_holders[(x, y)] = cell_obj
 
-    
 
+class Socket(Enum):
+    ROAD_CENTRE = "Road_Centre"
+    PAVEMENT_POS = "Pavement_Positive"
+    PAVEMENT_NEG = "Pavement_Negative"
+    BUILDING = "Building"
 
-    # print(get_cell(x, y))
-    # delete_cell(4, 3)
+valid_pairs_dictionary = {
+    Socket.BUILDING: [Socket.BUILDING],
+    Socket.PAVEMENT_POS: [Socket.PAVEMENT_NEG],
+    Socket.PAVEMENT_NEG: [Socket.PAVEMENT_POS],
+    Socket.ROAD_CENTRE: [Socket.ROAD_CENTRE]
+}
 
+class Axis(Enum):
+    POS_X = "PosX"
+    NEG_X = "NegX"
+    POS_Y = "PosY"
+    NEG_Y = "NegY"
 
 class MaterialPrimitives(Enum):
     Building = "Building_Primitive"
@@ -461,11 +472,9 @@ class PrimitiveModules(Enum):
     Road = "Road_Primitive"
 
 
-def get_rotated_socket_from_primitive(primitive, rotation):
-    match rotation:
-        case 0:
-            print("# return new primitive")
 all_primitives = {}
+
+
 def build_all_primitives(primitives_collection):
     for material_name in [
         MaterialPrimitives.Building.value,
