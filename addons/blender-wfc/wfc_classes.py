@@ -1,5 +1,5 @@
 import bpy
-
+from enum import Enum
 class WFCModule:
     def __init__(self, name, obj_source, module_weight, pos_x, neg_x, pos_y, neg_y):
         self.name = name
@@ -9,7 +9,24 @@ class WFCModule:
         self.neg_x = neg_x
         self.pos_y = pos_y
         self.neg_y = neg_y
-        
+        self.pos_x_pairs = []
+        self.neg_x_pairs = []
+        self.pos_y_pairs = []
+        self.neg_y_pairs = []
+
+class Primitive:
+    def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector):
+        self.name = name
+        self.primitive_type = primitive_type
+        self.verts = verts
+        self.faces = faces
+        self.mat_indices = mat_indices
+        self.material_names = material_names
+        self.pos_x_connector =pos_x_connector
+        self.neg_x_connector =neg_x_connector
+        self.pos_y_connector =pos_y_connector
+        self.neg_y_connector =neg_y_connector
+
 class WFCCell:
     def __init__(self, posX, posY, possibleModules):
         self.posX = posX
@@ -51,3 +68,9 @@ class WFCCoordinates:
 
     def __str__(self):
         return f"{self.posX, self.posY}"
+
+class Axis(Enum):
+    POS_X = "PosX"
+    NEG_X = "NegX"
+    POS_Y = "PosY"
+    NEG_Y = "NegY"
