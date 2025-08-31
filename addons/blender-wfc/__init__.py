@@ -71,6 +71,8 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
         layout.operator("object.clear_wfc_primitives")
         layout.operator("object.build_wfc_modules")
         layout.operator("object.clear_wfc_modules")
+        scene = context.scene
+        layout.prop(scene, "total_modules")
 
         obj = context.object
         if obj:
@@ -193,6 +195,8 @@ def generate_modules(object_list, modules_collection):
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
     print(f"Generated {len(all_modules)} modules from {len(object_list)} primitives.")
 
+    bpy.context.scene["total_modules"] = len(all_modules)
+
     for module in all_modules:
         build_module_pairs(module)
 
@@ -205,14 +209,14 @@ def build_module_pairs(module):
                 for other_module in all_modules:
                     other_socket = other_module.neg_x
                     if sockets_match(base_socket, other_socket):
-                        print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
+                        # print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
                         module.pos_x_pairs.append(other_module)
             case Axis.NEG_X:
                 base_socket = module.neg_x
                 for other_module in all_modules:
                     other_socket = other_module.pos_x
                     if sockets_match(base_socket, other_socket):
-                        print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
+                        # print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
                         module.neg_x_pairs.append(other_module)
 
             case Axis.POS_Y:
@@ -220,25 +224,38 @@ def build_module_pairs(module):
                 for other_module in all_modules:
                     other_socket = other_module.neg_y
                     if sockets_match(base_socket, other_socket):
-                        print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
+                        # print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
                         module.pos_y_pairs.append(other_module)
             case Axis.NEG_Y:
                 base_socket = module.neg_y
                 for other_module in all_modules:
                     other_socket = other_module.pos_y
                     if sockets_match(base_socket, other_socket):
-                        print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
+                        # print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
                         module.neg_y_pairs.append(other_module)
 
 def sockets_match(socket_a, socket_b):
-    if socket_a == 'ROAD' and socket_b == 'ROAD':
-        return True
-    # module.pos_x_pairs = []
-    # for other_module in all_modules:
-    #     if module.pos_x == 'ROAD' and other_module.neg_x == 'ROAD':
-    #         print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
-    #         module.pos_x_pairs.append(other_module)
-        # else:
+    if (socket_a == 'ROAD'):
+            if (socket_b == 'ROAD'):
+                return True
+            else:
+                return False
+    if (socket_a == 'BUILDING'):
+        if (socket_b == 'BUILDING'):
+            return True
+        else:
+            return False
+    if (socket_a == 'PAVEMENTPOS'):
+        if (socket_b == 'PAVEMENTNEG'):
+            return True
+        else:
+            return False
+    if (socket_a == 'PAVEMENTNEG'):
+        if (socket_b == 'PAVEMENTPOS'):
+            return True
+        else:
+            return False
+
 
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
@@ -282,7 +299,7 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
     def execute(self, context):
 
         grid_collection = get_collection_by_name(CollectionNames.Grid.value)
-        build_wfc_grid(grid_collection, all_modules_classes)
+        build_wfc_grid(grid_collection, all_modules)
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
@@ -311,27 +328,36 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
     bl_label = "Debug Collapse"  
 
     def execute(self, context):
+
+
+        # uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
+        uncollapsed_cells = uncollapsed_grid_cells.values()
         print("-----------------------")
-        print(f"remaining keys: {len([k for k in debug_all_grid_cells])}")
+        print(f"Remaining keys: {len([k for k in uncollapsed_grid_cells])}")
+        print(f"Remaining cells/values: {len([k for k in uncollapsed_cells])}")
 
-
-        uncollapsed_cells = [cell for cell in debug_all_grid_cells.values() if cell.isCollapsed == False]
-        print(f"uncollapsed cells: {len(uncollapsed_cells)}")
         # TODO: Combine the below, have teh cell_obj be a parameter of cell.
         cell = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
         debug_coords = cell.get_coords_set()
-        cell_obj = debug_all_grid_holders[cell.get_coords_set()]
-        print(f"cell chosen: {cell}")
+        print(f"Cell chosen: {cell} with coords: {debug_coords}")
+
         collapse_cell(cell)
+        # propagate
+        propagate(cell)
+        del uncollapsed_grid_cells[cell.get_coords_set()]
+
+        # DEBUG: Grabbing the physical mesh object and updating its data, purely for debug UI
+        cell_obj = cell.mesh_obj
         print(f"cell obj remaining modules was: {cell_obj.remaining_modules}")
         cell_obj.remaining_modules = cell.number_of_modules_remaining()
         print(f"cell obj remaining modules is now: {cell_obj.remaining_modules}")
         print(f"Cell collapsed: {cell.isCollapsed}")
-        print(f"Module chosen: {cell.return_collapsed_module()}")
-        del debug_all_grid_cells[debug_coords]
-        del debug_all_grid_holders[debug_coords]
+        print(f"Module chosen: {cell.return_collapsed_module().name}")
+        # del debug_all_grid_cells[debug_coords]
 
-        print(f"remaining keys: {len([k for k in debug_all_grid_cells])}")
+
+        print(f"Remaining keys: {len([k for k in uncollapsed_grid_cells])}")
+        print(f"Remaining cells/values: {len([k for k in uncollapsed_cells])}")
         print("-----------------------")
 
 
@@ -353,42 +379,43 @@ def duplicate_and_move_and_return(target_obj, target_location):
     duplicate.location = target_location
     return duplicate
 
-def get_all_available_sockets_at_axis(cell, axis):
-    available_sockets = []
-    for module in cell.possibleModules:
-        match axis:
-            case Axis.POS_X:
-                available_sockets.append(module.pos_x)
-            case Axis.NEG_X:
-                available_sockets.append(module.neg_x)
-            case Axis.POS_Y:
-                available_sockets.append(module.pos_y)
-            case Axis.NEG_Y:
-                available_sockets.append(module.neg_y)
 
 # UPNEXT
 def propagate(collapsed_cell):
     # initiate list of cells affected
     affected_cells = [collapsed_cell]
     # while that list has something
-    while affected_cells >0:
+    while len(affected_cells) >0:
         # pick an affected cell
         affected_cell = affected_cells[0]
+        affected_cells.remove(affected_cell)
         # loop through axes
-        for axis in [Axis.POS_X, Axis.NEG_X, Axis.POS_Y, Axis.NEG_Y]:
-            # has an uncollapsed neighbour at that axis?
-            possible_neighbour_coords = (affected_cell.posX, )
-                # get its uncollapsed neighbour neighbour at that axis
+        for axis in Axis:
+            possible_pairs = []
+            neighbour_coords = affected_cell.get_neighbour_coords_set(axis)
+            neighbour_cell = all_grid_cells[neighbour_coords]
+            if (neighbour_cell and neighbour_cell.isCollapsed == False):
+                print(f"Affected cell {affected_cell} has uncollapsed neighbour at {neighbour_coords}")
+                match axis:
+                    case Axis.POS_X:
+                        for module in affected_cell.possibleModules:
+                            possible_pairs.extend(module.pos_x_pairs)
+                    case Axis.NEG_X:
+                        for module in affected_cell.possibleModules:
+                            possible_pairs.extend(module.neg_x_pairs)
+                    case Axis.POS_Y:
+                        for module in affected_cell.possibleModules:
+                            possible_pairs.extend(module.pos_y_pairs)
+                    case Axis.NEG_Y:
+                        for module in affected_cell.possibleModules:
+                            possible_pairs.extend(module.neg_y_pairs)
 
-            # get list of  remaining modules for affected cell
 
-            # from above, build list of possible neighbour modules at input axis
-
-            
-
-            # get the opposite axis
-
-            # loop through that neighbours
+                invalid_modules = [module for module in neighbour_cell.possibleModules if module not in possible_pairs]
+                if len(invalid_modules) > 0:
+                    print(f"\tand it has invalid modules")
+                    neighbour_cell.remove_invalid_modules(invalid_modules)
+                    affected_cells.append(neighbour_cell)
 
 
 def get_lowest_entropy_cells(uncollapsed_cells):
@@ -407,11 +434,13 @@ def get_lowest_entropy_cells(uncollapsed_cells):
 def collapse_process():
     # Throw exception below if not
     if (len(all_grid_cells) != 0):
-        uncollapsed_cells = [cell_value for cell_value in all_grid_cells.values()]
+        uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
         while len(uncollapsed_cells) != 0:
             cell_to_collapse = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
             collapse_cell(cell_to_collapse)
             uncollapsed_cells.remove(cell_to_collapse)
+            del uncollapsed_grid_cells[cell_to_collapse.get_coords_set()]
+            propagate(cell_to_collapse)
 
     else:
         print("All Grid Cells is Empty")
@@ -448,6 +477,7 @@ def build_module_score(module_weight):
 
 
 all_grid_cells = {}
+uncollapsed_grid_cells = {}
 debug_all_grid_cells = {}
 
 all_grid_holders = {}
@@ -460,32 +490,31 @@ def build_wfc_grid(grid_collection, all_wfc_modules):
     y_size = 10
     for x in range(x_size):
         for y in range(y_size):
+            cell_obj_location = (x * (module_size), y * (module_size), 0)
+            bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=False, align='WORLD', location=cell_obj_location, scale=(1, 1, 1))
+            cell_obj = bpy.context.active_object
+            cell_obj.data.materials.append(bpy.data.materials.get("debug_modules_mat"))
+            cell_obj.remaining_modules = len(all_wfc_modules)
+            cell_obj['remaining_modules'] = len(all_wfc_modules)
+            cell_obj.data['remaining_modules'] = len(all_wfc_modules)
+            cell_obj.name = f"{x:02d}_{y:02d}_cell"
+            # TODO: Currently fails when the below was already the active collection. Modify method so that if its already in colelction then skip
+            link_object_to_single_collection(cell_obj, grid_collection)
+            # USE WFCCEll?
+            # TODO: Delete when not needed
+            all_grid_holders[(x, y)] = cell_obj
+            debug_all_grid_holders[(x, y)] = cell_obj
+
             cell = WFCCell(
                 posX = x, 
                 posY = y, 
-                possibleModules=all_wfc_modules
+                possibleModules=all_wfc_modules,
+                mesh_obj = cell_obj
                 )
             all_grid_cells[(x,y)] = cell
-            # TODO: Delete when not needed
-            debug_all_grid_cells[(x,y)] = cell
+            uncollapsed_grid_cells[(x, y)] = cell
 
-    # UPNEXT -> use all_modules_classes here, search for older references to all_modules, swap to new system
-    # TODO: instead of looping through size a second time, instead take the x,y data object and multiply that by moduel size
-    for x in range(x_size):
-        for y in range(y_size):
-            cell_location = (x * (module_size), y * (module_size), 0)
 
-            bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=False, align='WORLD', location=cell_location, scale=(1, 1, 1))
-            cell_obj = bpy.context.active_object
-
-            cell_obj.remaining_modules = len(all_wfc_modules)
-
-            cell_obj.name = f"{x:02d}_{y:02d}_cell"
-            link_object_to_single_collection(cell_obj, grid_collection)
-            # USE WFCCEll?
-            all_grid_holders[(x, y)] = cell_obj
-            # TODO: Delete when not needed
-            debug_all_grid_holders[(x, y)] = cell_obj
 
 
 class Socket(Enum):
@@ -494,18 +523,6 @@ class Socket(Enum):
     PAVEMENT_NEG = "Pavement_Negative"
     BUILDING = "Building"
 
-valid_pairs_dictionary = {
-    Socket.BUILDING: [Socket.BUILDING],
-    Socket.PAVEMENT_POS: [Socket.PAVEMENT_NEG],
-    Socket.PAVEMENT_NEG: [Socket.PAVEMENT_POS],
-    Socket.ROAD_CENTRE: [Socket.ROAD_CENTRE]
-}
-
-# class Axis(Enum):
-#     POS_X = "PosX"
-#     NEG_X = "NegX"
-#     POS_Y = "PosY"
-#     NEG_Y = "NegY"
 
 class MaterialPrimitives(Enum):
     Building = "Building_Primitive"
@@ -660,8 +677,6 @@ def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
 
 
 
-
-
 enum_items_keys = [
     'ROAD_STRAIGHT',
     'PAVEMENT',
@@ -694,6 +709,7 @@ def register():
     for r_class in REGISTER_CLASSES:
         bpy.utils.register_class(r_class)
 
+    bpy.types.Scene.total_modules = IntProperty(default=0)
 
     bpy.types.Object.primitive_type = bpy.props.EnumProperty(
         name="Primitive",
@@ -736,6 +752,7 @@ def unregister():
     for r_class in REGISTER_CLASSES:
         bpy.utils.unregister_class(r_class)
 
+    del bpy.types.Scene.total_modules
     del bpy.types.Object.primitive_type
     del bpy.types.Object.x_pos_connector
     del bpy.types.Object.x_neg_connector

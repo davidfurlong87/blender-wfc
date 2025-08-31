@@ -14,6 +14,17 @@ class WFCModule:
         self.pos_y_pairs = []
         self.neg_y_pairs = []
 
+    def get_all_pairs_fox_axis(self, axis):
+        match axis:
+            case Axis.POS_X:
+                return self.pos_x_pairs
+            case Axis.NEG_X:
+                return  self.neg_x_pairs
+            case Axis.POS_Y:
+                return self.pos_y_pairs
+            case Axis.NEG_Y:
+                return self.neg_y_pairs
+
 class Primitive:
     def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector):
         self.name = name
@@ -28,7 +39,7 @@ class Primitive:
         self.neg_y_connector =neg_y_connector
 
 class WFCCell:
-    def __init__(self, posX, posY, possibleModules):
+    def __init__(self, posX, posY, possibleModules, mesh_obj):
         self.posX = posX
         self.posY = posY
         self.coordinates = WFCCoordinates(posX, posY)
@@ -37,6 +48,7 @@ class WFCCell:
         self.isCollapsed = False
         # TODO: Implement the below
         # self.cell_obj = cell_obj
+        self.mesh_obj = mesh_obj
 
     def __str__(self):
         return f"{self.posX, self.posY}"
@@ -47,17 +59,31 @@ class WFCCell:
     
     def get_coords_set(self):
         return (self.posX, self.posY)
+
+    def get_neighbour_coords_set(self, axis):
+        match axis:
+            case Axis.POS_X:
+                return (self.posX + 1, self.posY)
+            case Axis.NEG_X:
+                return (self.posX - 1, self.posY)
+            case Axis.POS_Y:
+                return (self.posX, self.posY + 1)
+            case Axis.NEG_Y:
+                return (self.posX, self.posY - 1)
     
     def number_of_modules_remaining(self):
         return len(self.possibleModules)
     
     def return_collapsed_module(self):
-        print(f"(self.number_of_modules_remaining): {(self.number_of_modules_remaining())}")
         if (self.isCollapsed):
             return self.possibleModules[0]
         else:
             # TODO: EXCEPTION
             print(f"Cell {self.posX, self.posY} NOT YET COLLAPSED")
+
+    def remove_invalid_modules(self, invalid_modules):
+        for module in invalid_modules:
+            self.possibleModules.remove(module)
 
 
 # TODO:rename posX/Y. this looks like its an axis, just x/y is fine
