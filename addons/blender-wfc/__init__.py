@@ -384,6 +384,7 @@ def duplicate_and_move_and_return(target_obj, target_location):
 def propagate(collapsed_cell):
     # initiate list of cells affected
     affected_cells = [collapsed_cell]
+    cells_to_update=[]
     # while that list has something
     while len(affected_cells) >0:
         # pick an affected cell

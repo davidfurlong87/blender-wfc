@@ -81,9 +81,15 @@ class WFCCell:
             # TODO: EXCEPTION
             print(f"Cell {self.posX, self.posY} NOT YET COLLAPSED")
 
+
+
+
     def remove_invalid_modules(self, invalid_modules):
         for module in invalid_modules:
             self.possibleModules.remove(module)
+        print(f"mesh_obj.remaining_modules was: {self.mesh_obj.remaining_modules}")
+        self.mesh_obj.remaining_modules = len(self.possibleModules)
+        print(f"mesh_obj.remaining_modules is now: {self.mesh_obj.remaining_modules}")
 
 
 # TODO:rename posX/Y. this looks like its an axis, just x/y is fine
