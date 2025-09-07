@@ -384,6 +384,8 @@ def duplicate_and_move_and_return(target_obj, target_location):
 def propagate(collapsed_cell):
     # initiate list of cells affected
     affected_cells = [collapsed_cell]
+    all_cell_keys = [key for key in all_grid_cells.keys()]
+    # TODO: purpose of this is to allow me to update meshData/material inputs
     cells_to_update=[]
     # while that list has something
     while len(affected_cells) >0:
@@ -394,7 +396,14 @@ def propagate(collapsed_cell):
         for axis in Axis:
             possible_pairs = []
             neighbour_coords = affected_cell.get_neighbour_coords_set(axis)
-            neighbour_cell = all_grid_cells[neighbour_coords]
+
+            # TODO: crappy getOrElse, change
+            if neighbour_coords in all_cell_keys:
+                print(f"Key {neighbour_coords} in all grid cells")
+                neighbour_cell = all_grid_cells[neighbour_coords]
+            else:
+                print(f"Skipping Key {neighbour_coords}")
+
             if (neighbour_cell and neighbour_cell.isCollapsed == False):
                 print(f"Affected cell {affected_cell} has uncollapsed neighbour at {neighbour_coords}")
                 match axis:
