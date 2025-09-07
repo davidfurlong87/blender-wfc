@@ -1,7 +1,7 @@
 import bpy
 
 remaining_modules_attribute_name = "remaining_modules"
-
+debug_modules_mat_name = "debug_modules_mat"
 
 def get_or_create_material(material_name):
     material = bpy.data.materials.get(material_name)
@@ -78,4 +78,4 @@ def build_material(material_name, delete_existing=True):
     bpy.context.object.active_material = material
 
 
-build_material("foomat")
+build_material(debug_modules_mat_name)
