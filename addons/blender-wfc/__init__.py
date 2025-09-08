@@ -751,9 +751,14 @@ def register():
         description="Classification of object",
         items=CONNECTORS
     )
+    def update_remaining_modules(self, context):
+        # Force viewport update when remaining_modules changes
+        context.view_layer.update()
+    
     bpy.types.Object.remaining_modules = bpy.props.IntProperty(
         name="Modules",
-        description="Remaining variants"
+        description="Remaining variants",
+        update=update_remaining_modules
     )
 
 
