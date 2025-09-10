@@ -71,18 +71,38 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
         layout.operator("object.clear_wfc_primitives")
         layout.operator("object.build_wfc_modules")
         layout.operator("object.clear_wfc_modules")
+        layout.operator("object.wfc_clear_all")
         scene = context.scene
         layout.prop(scene, "total_modules")
 
-        obj = context.object
-        if obj:
-            layout.prop(obj, "primitive_type")
-            layout.prop(obj, "x_pos_connector")
-            layout.prop(obj, "x_neg_connector")
-            layout.prop(obj, "y_pos_connector")
-            layout.prop(obj, "y_neg_connector")
+        # obj = context.object
+        # if obj:
+        #     layout.prop(obj, "primitive_type")
+        #     layout.prop(obj, "x_pos_connector")
+        #     layout.prop(obj, "x_neg_connector")
+        #     layout.prop(obj, "y_pos_connector")
+        #     layout.prop(obj, "y_neg_connector")
 
+class OBJECT_OT_WFCClearAll(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "object.wfc_clear_all"
+    bl_label = "Reset Everything"
 
+    def execute(self, context):
+        all_primitives.clear()
+        all_primitive_data.clear()
+
+        delete_objects_and_meshes(
+            get_all_objects_from_collection(CollectionNames.Primitives.value)
+        )
+
+        all_modules.clear()
+        delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
+
+        delete_objects_and_meshes(
+            get_all_objects_from_collection(CollectionNames.Grid.value)
+        )
+        return {'FINISHED'}
 
 class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
     """Tooltip"""
@@ -146,6 +166,10 @@ def generate_modules(object_list, modules_collection):
         negX_placeholder = primitive.x_neg_connector
         posY_placeholder = primitive.y_pos_connector
         negY_placeholder = primitive.y_neg_connector
+        default_weight = 1
+        if (primitive.name == PrimitiveModules.Building.value):
+            print(f"Building: weight set t0 2")
+            default_weight = 1.2
 
         for rotation in range(4):
             match rotation:
@@ -175,7 +199,7 @@ def generate_modules(object_list, modules_collection):
                         WFCModule(
                             name = module_name,
                             obj_source = module_obj,
-                            module_weight=1,
+                            module_weight=default_weight,
                             pos_x = posX_placeholder,
                             neg_x= negX_placeholder, 
                             pos_y = posY_placeholder, 
@@ -339,7 +363,7 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
         # TODO: Combine the below, have teh cell_obj be a parameter of cell.
         cell = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
         debug_coords = cell.get_coords_set()
-        print(f"Cell chosen: {cell} with coords: {debug_coords}")
+        # print(f"Cell chosen: {cell} with coords: {debug_coords}")
 
         collapse_cell(cell)
         # propagate
@@ -348,17 +372,17 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
 
         # DEBUG: Grabbing the physical mesh object and updating its data, purely for debug UI
         cell_obj = cell.mesh_obj
-        print(f"cell obj remaining modules was: {cell_obj.remaining_modules}")
+        # print(f"cell obj remaining modules was: {cell_obj.remaining_modules}")
         cell_obj.remaining_modules = cell.number_of_modules_remaining()
-        print(f"cell obj remaining modules is now: {cell_obj.remaining_modules}")
-        print(f"Cell collapsed: {cell.isCollapsed}")
-        print(f"Module chosen: {cell.return_collapsed_module().name}")
+        # print(f"cell obj remaining modules is now: {cell_obj.remaining_modules}")
+        # print(f"Cell collapsed: {cell.isCollapsed}")
+        # print(f"Module chosen: {cell.return_collapsed_module().name}")
         # del debug_all_grid_cells[debug_coords]
 
 
-        print(f"Remaining keys: {len([k for k in uncollapsed_grid_cells])}")
-        print(f"Remaining cells/values: {len([k for k in uncollapsed_cells])}")
-        print("-----------------------")
+        # print(f"Remaining keys: {len([k for k in uncollapsed_grid_cells])}")
+        # print(f"Remaining cells/values: {len([k for k in uncollapsed_cells])}")
+        # print("-----------------------")
 
 
 
@@ -401,31 +425,31 @@ def propagate(collapsed_cell):
             if neighbour_coords in all_cell_keys:
                 print(f"Key {neighbour_coords} in all grid cells")
                 neighbour_cell = all_grid_cells[neighbour_coords]
-            else:
-                print(f"Skipping Key {neighbour_coords}")
+            # else:
+                # print(f"Skipping Key {neighbour_coords}")
 
-            if (neighbour_cell and neighbour_cell.isCollapsed == False):
-                print(f"Affected cell {affected_cell} has uncollapsed neighbour at {neighbour_coords}")
-                match axis:
-                    case Axis.POS_X:
-                        for module in affected_cell.possibleModules:
-                            possible_pairs.extend(module.pos_x_pairs)
-                    case Axis.NEG_X:
-                        for module in affected_cell.possibleModules:
-                            possible_pairs.extend(module.neg_x_pairs)
-                    case Axis.POS_Y:
-                        for module in affected_cell.possibleModules:
-                            possible_pairs.extend(module.pos_y_pairs)
-                    case Axis.NEG_Y:
-                        for module in affected_cell.possibleModules:
-                            possible_pairs.extend(module.neg_y_pairs)
+                if (neighbour_cell and neighbour_cell.isCollapsed == False):
+                    # print(f"Affected cell {affected_cell} has uncollapsed neighbour at {neighbour_coords}")
+                    match axis:
+                        case Axis.POS_X:
+                            for module in affected_cell.possibleModules:
+                                possible_pairs.extend(module.pos_x_pairs)
+                        case Axis.NEG_X:
+                            for module in affected_cell.possibleModules:
+                                possible_pairs.extend(module.neg_x_pairs)
+                        case Axis.POS_Y:
+                            for module in affected_cell.possibleModules:
+                                possible_pairs.extend(module.pos_y_pairs)
+                        case Axis.NEG_Y:
+                            for module in affected_cell.possibleModules:
+                                possible_pairs.extend(module.neg_y_pairs)
 
 
-                invalid_modules = [module for module in neighbour_cell.possibleModules if module not in possible_pairs]
-                if len(invalid_modules) > 0:
-                    print(f"\tand it has invalid modules")
-                    neighbour_cell.remove_invalid_modules(invalid_modules)
-                    affected_cells.append(neighbour_cell)
+                    invalid_modules = [module for module in neighbour_cell.possibleModules if module not in possible_pairs]
+                    if len(invalid_modules) > 0:
+                        # print(f"\tand it has invalid modules")
+                        neighbour_cell.remove_invalid_modules(invalid_modules)
+                        affected_cells.append(neighbour_cell)
 
 
 def get_lowest_entropy_cells(uncollapsed_cells):
@@ -457,13 +481,15 @@ def collapse_process():
 
 def collapse_cell(cell):
     print(f"Reamining modules: {len(cell.possibleModules)}")
-    # Check modules weight
-    default_weight = 1
     # TODO: Repalce below with def get_highest_weight_modules(modules)
-    scored_modules = [(build_module_score(default_weight), module) for module in cell.possibleModules]
+    scored_modules = [(build_module_score(module.module_weight), module) for module in cell.possibleModules]
     module_to_return = scored_modules[0]
+    print("------------------------")
+    print("Scoring modules:")
+    print("------------------------")
     # TODO: Magioc numbers, replace with scored module class -> if current_s_module.score > ...
     for scored_module in scored_modules:
+        print(f"Scored Module: {scored_module[1].name}")
         if scored_module[0] > module_to_return[0]:
             module_to_return = scored_module
     print(f"Cell modules was: {cell.number_of_modules_remaining()}")
@@ -483,7 +509,7 @@ def collapse_cell(cell):
 
 
 def build_module_score(module_weight):
-    return module_weight * random.randint(1, 101)
+    return module_weight * random.randint(1, 10001)
 
 
 all_grid_cells = {}
@@ -695,6 +721,7 @@ enum_items_keys = [
 ]
 
 OPERATORS = [
+                OBJECT_OT_WFCClearAll,
                 OBJECT_OT_AddWfcPrimitives,
                 OBJECT_OT_ClearWfcPrimitives,
                 OBJECT_OT_BuildWfcModules,
