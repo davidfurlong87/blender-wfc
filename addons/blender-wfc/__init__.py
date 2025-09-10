@@ -4,21 +4,34 @@ from bpy.props import BoolProperty, EnumProperty, StringProperty, FloatProperty,
 
 from math import radians
 from bpy.props import BoolProperty, IntProperty, StringProperty
-from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
-import sys
-from .wfc_classes import WFCModule, WFCCoordinates, WFCCell, Primitive, Axis
 from enum import Enum
+import sys
 
-# if "wfc_collections" in locals():
-# import importlib
-#
-# importlib.reload(wfc_collections)
-#
-# importlib.reload(wfctools)
+# Reload modules for development
+if "bpy" in locals():
+    import importlib
+    if "wfc_collections" in locals():
+        importlib.reload(wfc_collections)
+    if "wfc_classes" in locals():
+        importlib.reload(wfc_classes)
+    if "wfc_materials" in locals():
+        importlib.reload(wfc_materials)
+    if "wfc_values" in locals():
+        importlib.reload(wfc_values)
+    # Reload submodules - simpler approach
+    try:
+        from .collectiontools import collection_creation
+        importlib.reload(collection_creation)
+    except:
+        pass  # Module not loaded yet or import error
+
+from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
+from .wfc_classes import WFCModule, WFCCoordinates, WFCCell, Primitive, Axis
+from .wfc_materials import build_all_primitive_materials, build_wfc_mats, MaterialPrimitives
 
 from .wfc_values import bl_category_name, CollectionNames, module_size
 from .collectiontools.collection_creation import *
-
+from .wfc_enums import CONNECTORS
 
 bl_info = {
     "name": "wfc",
@@ -31,30 +44,6 @@ bl_info = {
 }
 
 bl_category_name = "wfc"
-
-# TODO: IGNORED By the EnumProperty, which instead uses ROAD_STRAIGHT etc.
-PRIMITIVE_TYPES = [
-    ('ROAD', "Road", "Road surface or path"),
-    ('BUILDING', "Building", "Structure or building"),
-    ('PAVEMENT', "Pavement", "Pedestrian walkway"),
-    ('CORNER', "Corner", "Pedestrian walkway corner"),
-]
-aspects = ["posX", "negX", "posY", "negY"]
-
-
-# class Connectors(Enum):
-#     Road = "Road"
-#     Building = "Building"
-#     PavementPos = "PavementPos"
-#     PavementNeg = "PavementNeg"
-
-CONNECTORS = [
-    ('ROAD', "Road", ""),
-    ('BUILDING', "Building", ""),
-    ('PAVEMENTPOS', "PavemntPos", ""),
-    ('PAVEMENTNEG', "PavemntNeg", "")
-]
-
 
 class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
     """Panel for creating a full vertex group"""
@@ -150,6 +139,7 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
             delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
         prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
         if len(prims) > 0:
+            build_wfc_mats()
             generate_modules(prims,get_collection_by_name(CollectionNames.Modules.value))
         return {'FINISHED'}
 
@@ -169,7 +159,7 @@ def generate_modules(object_list, modules_collection):
         default_weight = 1
         if (primitive.name == PrimitiveModules.Building.value):
             print(f"Building: weight set t0 2")
-            default_weight = 1.2
+            default_weight = 1.05
 
         for rotation in range(4):
             match rotation:
@@ -404,7 +394,6 @@ def duplicate_and_move_and_return(target_obj, target_location):
     return duplicate
 
 
-# UPNEXT
 def propagate(collapsed_cell):
     # initiate list of cells affected
     affected_cells = [collapsed_cell]
@@ -480,33 +469,21 @@ def collapse_process():
         print("All Grid Cells is Empty")
 
 def collapse_cell(cell):
-    print(f"Reamining modules: {len(cell.possibleModules)}")
     # TODO: Repalce below with def get_highest_weight_modules(modules)
     scored_modules = [(build_module_score(module.module_weight), module) for module in cell.possibleModules]
     module_to_return = scored_modules[0]
-    print("------------------------")
-    print("Scoring modules:")
-    print("------------------------")
     # TODO: Magioc numbers, replace with scored module class -> if current_s_module.score > ...
     for scored_module in scored_modules:
         print(f"Scored Module: {scored_module[1].name}")
         if scored_module[0] > module_to_return[0]:
             module_to_return = scored_module
-    print(f"Cell modules was: {cell.number_of_modules_remaining()}")
     cell.possibleModules = [module_to_return[1]]
-    print(f"Cell modules now: {cell.number_of_modules_remaining()}")
     cell.isCollapsed = True
     module_obj = module_to_return[1].obj_source
     placement_location = (cell.posX * (module_size), cell.posY * (module_size), 0)
     collapsed_cell_obj = duplicate_and_move_and_return(module_obj, placement_location)
     collapsed_cell_obj.name = f"{cell.posX:02d}_{cell.posY:02d}-{module_obj.name}"
     link_object_to_single_collection(collapsed_cell_obj, get_collection_by_name(CollectionNames.Grid.value))    
-
-
-# def get_highest_weight_modules(modules):
-#     default_weight = 1
-#     weighted_modules = [[build_module_score(default_weight), module] for module in modules]
-
 
 def build_module_score(module_weight):
     return module_weight * random.randint(1, 10001)
@@ -551,8 +528,6 @@ def build_wfc_grid(grid_collection, all_wfc_modules):
             uncollapsed_grid_cells[(x, y)] = cell
 
 
-
-
 class Socket(Enum):
     ROAD_CENTRE = "Road_Centre"
     PAVEMENT_POS = "Pavement_Positive"
@@ -560,10 +535,10 @@ class Socket(Enum):
     BUILDING = "Building"
 
 
-class MaterialPrimitives(Enum):
-    Building = "Building_Primitive"
-    Pavement = "Pavement_Primitive"
-    Road = "Road_Primitive"
+# class MaterialPrimitives(Enum):
+#     Building = "Building_Primitive"
+#     Pavement = "Pavement_Primitive"
+#     Road = "Road_Primitive"
 
 
 class PrimitiveModules(Enum):
@@ -577,20 +552,21 @@ all_primitives = {}
 all_primitive_data = []
 
 def build_all_primitives(primitives_collection):
-    for material_name in [
-        MaterialPrimitives.Building.value,
-        MaterialPrimitives.Pavement.value,
-        MaterialPrimitives.Road.value
-    ]:
-        match material_name:
-            case MaterialPrimitives.Building.value:
-                build_primitive_material(material_name, (0.8, 0.4, 0.2, 1.0))
-            case MaterialPrimitives.Pavement.value:
-                build_primitive_material(material_name, (0.1, 0.4, 0.8, 1.0))
-            case MaterialPrimitives.Road.value:
-                build_primitive_material(material_name, (0.05, 0.05, 0.05, 1.0))
-            case default:
-                build_primitive_material("failure", (0.0, 0.0, 0.0, 1.0))
+    build_all_primitive_materials()
+    # for material_name in [
+    #     MaterialPrimitives.Building.value,
+    #     MaterialPrimitives.Pavement.value,
+    #     MaterialPrimitives.Road.value
+    # ]:
+    #     match material_name:
+    #         case MaterialPrimitives.Building.value:
+    #             build_primitive_material(material_name, (0.8, 0.4, 0.2, 1.0))
+    #         case MaterialPrimitives.Pavement.value:
+    #             build_primitive_material(material_name, (0.1, 0.4, 0.8, 1.0))
+    #         case MaterialPrimitives.Road.value:
+    #             build_primitive_material(material_name, (0.05, 0.05, 0.05, 1.0))
+    #         case default:
+    #             build_primitive_material("failure", (0.0, 0.0, 0.0, 1.0))
 
 
     building_primitive = Primitive(
@@ -688,37 +664,28 @@ def build_from_primitive_data(primitive, primitives_collection, location):
     mesh_obj.y_pos_connector = primitive.pos_y_connector
     mesh_obj.y_neg_connector = primitive.neg_y_connector
 
-def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
-    old_material = bpy.data.materials.get(material_name)
-    if not old_material:
-        mat = bpy.data.materials.new(name=material_name)
-        mat.use_nodes = True
+# def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
+#     old_material = bpy.data.materials.get(material_name)
+#     if not old_material:
+#         mat = bpy.data.materials.new(name=material_name)
+#         mat.use_nodes = True
 
-        # Clear default nodes
-        nodes = mat.node_tree.nodes
-        nodes.clear()
+#         # Clear default nodes
+#         nodes = mat.node_tree.nodes
+#         nodes.clear()
 
-        # Add Diffuse BSDF and Material Output nodes
-        diffuse_node = nodes.new(type="ShaderNodeBsdfDiffuse")
-        output_node = nodes.new(type="ShaderNodeOutputMaterial")
+#         # Add Diffuse BSDF and Material Output nodes
+#         diffuse_node = nodes.new(type="ShaderNodeBsdfDiffuse")
+#         output_node = nodes.new(type="ShaderNodeOutputMaterial")
 
-        # Set the color
-        diffuse_node.inputs['Color'].default_value = colour
+#         # Set the color
+#         diffuse_node.inputs['Color'].default_value = colour
 
-        # Link Diffuse to Output
-        mat.node_tree.links.new(diffuse_node.outputs['BSDF'], output_node.inputs['Surface'])
+#         # Link Diffuse to Output
+#         mat.node_tree.links.new(diffuse_node.outputs['BSDF'], output_node.inputs['Surface'])
 
-        # Enable backface culling
-        mat.use_backface_culling = True
-
-
-
-enum_items_keys = [
-    'ROAD_STRAIGHT',
-    'PAVEMENT',
-    'BUILDING',
-    'CORNER'
-]
+#         # Enable backface culling
+#         mat.use_backface_culling = True
 
 OPERATORS = [
                 OBJECT_OT_WFCClearAll,

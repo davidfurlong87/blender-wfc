@@ -4,7 +4,6 @@ from bpy.props import BoolProperty, EnumProperty, StringProperty, FloatProperty
 from .wfc_values import CollectionNames
 
 from .collectiontools.collection_creation import build_or_return_collection
-from .collectiontools import *
 
 bl_category_name = "wfc"
 
@@ -17,7 +16,7 @@ class OBJECT_PT_BuildCollections(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        # layout.prop(context.scene, "clear_collections")
+        # layout.prop(scene, "total_modules")
         layout.operator("object.build_default_collections")
 
 class OBJECT_OT_BuildDefaultCollections(bpy.types.Operator):

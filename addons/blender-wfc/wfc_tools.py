@@ -1,59 +1,9 @@
 
-#
-# import bpy
-# from random import random, choice, randint
-# from mathutils import Vector
-# from enum import Enum
-
-# # ----------------------------------------------
-# # Define Basic Python Classes
-# # ----------------------------------------------
-
-# def delete_cell(x, y):
-#     specific_plane = get_cell(x, y)
-#     if specific_plane:
-#         collection.objects.unlink(specific_plane)
-#         del plane_dict[x][y]
-#         bpy.data.objects.remove(specific_plane, do_unlink=True)
-#
-#
-
-
-
-#
-
-#
-# # ----------------------------------------------
-# # Define Constants
-# # ----------------------------------------------
-#
-# grid_objects_collection_name = "GridObjects"
-# prefab_base_collection_name = "PrefabPrimitives"
-# prefab_variant_collection_name = "PrefabVariants"
-#
 # # ----------------------------------------------
 # # General/Universal Functions
 # # ----------------------------------------------
-#
-# def instantiate_random_object(xPos, yPos, prefabSize, grid_objects_collection, variant_collection, cell):
-# #    chosenVariant = cell.possibleVariants[randint(0, len(cell.possibleVariants)-1)]
-#     if len(cell.possibleVariants) > 1:
-#         print("too many protos!")
-#     chosenVariant = cell.possibleVariants[0]
-#     #TODO:  should probably instantiate instead of full copying, at least for debugging
-#     variantCopy = chosenVariant.copy()
-#     grid_objects_collection.objects.link(variantCopy)
-#     variantCopy.location = (xPos * (prefabSize), yPos * (prefabSize), 0)
-#     variantCopy.name = f"{xPos:02d}_{yPos:02d}"
-#     cell.isCollapsed = True
-#
-# def safe_dictionary_get(dict, *keys):
-#     for key in keys:
-#         try:
-#             dict = dict[key]
-#         except KeyError:
-#             return None
-#     return dict
+
+
 #
 #
 # # ----------------------------------------------
@@ -72,44 +22,9 @@
 #             currentLowestEntropy = len(cell.possibleVariants)
 #     return choice(cellsWithLowestEntropy)
 #
-# def collapse_cell(cell):
-# #    TODO: use RNG adjusted by weights to determine selected prefab
-# #    chosenVariantIndex = choose_random_index()         iterate through, adjust a given variants chance by scaling it based on given weights
-#     chosenVariantIndex = randint(0, len(cell.possibleVariants)-1)
-#     chosenVariant = cell.possibleVariants[chosenVariantIndex]
-#     cell.possibleVariants.clear()
-# #   TODO: replace code with cell.possibleVariants = cell.possibleVariants[chosenVariantIndex]
-#     cell.possibleVariants = [chosenVariant]
-#     print(f"Current cell is {cell.posX}/{cell.posY} \nchosenVariantIndex is {chosenVariantIndex} \nchosenVariant is {chosenVariant}\n")
-#
-# def get_neighbour_coords(cell_coords, axis):
-#     match axis:
-#         case axis.POS_X:
-#             return (cell_coords[0] + 1,  cell_coords[1])
-#         case axis.NEG_X:
-#             return (cell_coords[0] -1,  cell_coords[1])
-#         case axis.POS_Y:
-#             return (cell_coords[0],  cell_coords[1] + 1)
-#         case axis.NEG_Y:
-#             return (cell_coords[0],  cell_coords[1] - 1)
-#
-# def propagate(cell, cellMap):
-#     cellsAffected = [cell]
-#     while (len(cellsAffected) > 0):
-#         currentCell = cellsAffected[0]
-#         cellsAffected.remove(currentCell)
-#         for axis in get_all_axes():
-#             oppositeAxis = get_opposite_axis(axis)
-#             neighbourCoords = get_neighbour_coords(currentCell.get_coords(), axis)
-#             otherCell = safe_dictionary_get(cellMap, neighbourCoords[0], neighbourCoords[1])
-#
-#
-#             print(f"Axis is {axis}\nCurrent cell is {cell}, neibhour cell is {otherCell}\n")
-#
-#
-#     #        otherCell = currentCell.NeighbourAtAxis(currentAxis);
-#     #        if (otherCell != null)
-#
+
+
+
 #
 #
 # # ----------------------------------------------

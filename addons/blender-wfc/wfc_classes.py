@@ -105,3 +105,11 @@ class Axis(Enum):
     NEG_X = "NegX"
     POS_Y = "PosY"
     NEG_Y = "NegY"
+
+# def safe_dictionary_get(dict, *keys):
+#     for key in keys:
+#         try:
+#             dict = dict[key]
+#         except KeyError:
+#             return None
+#     return dict
