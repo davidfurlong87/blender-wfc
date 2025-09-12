@@ -1,9 +1,8 @@
 import bpy
 import random
-from bpy.props import BoolProperty, EnumProperty, StringProperty, FloatProperty, PointerProperty
+from bpy.props import BoolProperty, IntProperty, EnumProperty, StringProperty, FloatProperty, PointerProperty
 
 from math import radians
-from bpy.props import BoolProperty, IntProperty, StringProperty
 from enum import Enum
 import sys
 
@@ -18,6 +17,8 @@ if "bpy" in locals():
         importlib.reload(wfc_materials)
     if "wfc_values" in locals():
         importlib.reload(wfc_values)
+    if "primitive_data" in locals():
+        importlib.reload(primitive_data)
     # Reload submodules - simpler approach
     try:
         from .collectiontools import collection_creation
@@ -26,12 +27,13 @@ if "bpy" in locals():
         pass  # Module not loaded yet or import error
 
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
-from .wfc_classes import WFCModule, WFCCoordinates, WFCCell, Primitive, Axis
-from .wfc_materials import build_all_primitive_materials, build_wfc_mats, MaterialPrimitives
+from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
+from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 
 from .wfc_values import bl_category_name, CollectionNames, module_size
 from .collectiontools.collection_creation import *
 from .wfc_enums import CONNECTORS
+from .primitive_data import build_default_primitives, PrimitiveModules
 
 bl_info = {
     "name": "wfc",
@@ -78,20 +80,31 @@ class OBJECT_OT_WFCClearAll(bpy.types.Operator):
     bl_label = "Reset Everything"
 
     def execute(self, context):
-        all_primitives.clear()
-        all_primitive_data.clear()
+        clear_all_primitives()
+        clear_all_modules()
+        clear_all_cells()
+        build_wfc_grid(all_modules)
 
+        return {'FINISHED'}
+
+def clear_all_primitives():
+        all_primitives.clear()
         delete_objects_and_meshes(
             get_all_objects_from_collection(CollectionNames.Primitives.value)
         )
 
-        all_modules.clear()
-        delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
+def clear_all_modules():
+    all_modules.clear()
+    # TODO: check if collections exist
+    delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
 
-        delete_objects_and_meshes(
-            get_all_objects_from_collection(CollectionNames.Grid.value)
-        )
-        return {'FINISHED'}
+def clear_all_cells():
+    delete_objects_and_meshes(
+        get_all_objects_from_collection(CollectionNames.Grid.value)
+    )
+    # TODO: For this and the other clears, might be better looping through the code list and deleting whatever is there.
+    all_grid_cells.clear()
+    uncollapsed_grid_cells.clear()
 
 class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
     """Tooltip"""
@@ -99,20 +112,9 @@ class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
     bl_label = "Re/Generate Primitives"
 
     def execute(self, context):
-        # check if collections exist
-
-        # TODO: all_primitives.clear or all_primitives = {}
-        all_primitives.clear()
-        all_primitive_data.clear()
-        delete_objects_and_meshes(
-            get_all_objects_from_collection(CollectionNames.Primitives.value)
-        )
-        primitives_collection = get_collection_by_name(CollectionNames.Primitives.value)
-        build_all_primitives(primitives_collection)
-
-        # prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
+        clear_all_primitives()
+        build_all_primitives()
         return {'FINISHED'}
-
 
 class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
     """Tooltip"""
@@ -120,12 +122,7 @@ class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
     bl_label = "Clear Primitives"
 
     def execute(self, context):
-        all_primitives.clear()
-        all_primitive_data.clear()
-
-        delete_objects_and_meshes(
-            get_all_objects_from_collection(CollectionNames.Primitives.value)
-        )
+        clear_all_primitives()
         return {'FINISHED'}
 
 class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
@@ -134,12 +131,9 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
     bl_label = "Re/Generate Modules"
 
     def execute(self, context):
-        # TODO: check if collections exist
-        if len(get_all_objects_from_collection(CollectionNames.Primitives.value)) > 0:
-            delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
+        clear_all_modules()
         prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
         if len(prims) > 0:
-            build_wfc_mats()
             generate_modules(prims,get_collection_by_name(CollectionNames.Modules.value))
         return {'FINISHED'}
 
@@ -162,46 +156,33 @@ def generate_modules(object_list, modules_collection):
             default_weight = 1.05
 
         for rotation in range(4):
-            match rotation:
-                case default:
+            module_name = primitive.name + f"_{rotation}"
+            module_data = primitive.data.copy()
+            module_obj = bpy.data.objects.new(module_name, module_data)
 
+            module_obj.x_pos_connector = posX_placeholder 
+            module_obj.x_neg_connector = negX_placeholder
+            module_obj.y_pos_connector = posY_placeholder 
+            module_obj.y_neg_connector = negY_placeholder
+            link_object_to_single_collection(module_obj, modules_collection)
 
-                    module_name = primitive.name + f"_{rotation}"
-                    # module_data = bpy.data.meshes.new(module_name)
-                    # module_obj = bpy.data.objects.new(module_name, module_data)
-                    # module_data.from_pydata(primitive_data.verts, [], primitive_data.faces)
-                    # module_data.update()
-
-                    module_data = primitive.data.copy()
-
-                    module_obj = bpy.data.objects.new(module_name, module_data)
-
-                    module_obj.x_pos_connector = posX_placeholder 
-                    module_obj.x_neg_connector = negX_placeholder
-                    module_obj.y_pos_connector = posY_placeholder 
-                    module_obj.y_neg_connector = negY_placeholder
-                    link_object_to_single_collection(module_obj, modules_collection)
-
-
-                    # TODO: Implement weights system
-
-                    all_modules.append(
-                        WFCModule(
-                            name = module_name,
-                            obj_source = module_obj,
-                            module_weight=default_weight,
-                            pos_x = posX_placeholder,
-                            neg_x= negX_placeholder, 
-                            pos_y = posY_placeholder, 
-                            neg_y = negY_placeholder
-                        )
-                    )
-                    posX_placeholder = module_obj.y_neg_connector
-                    negX_placeholder = module_obj.y_pos_connector
-                    posY_placeholder = module_obj.x_pos_connector
-                    negY_placeholder = module_obj.x_neg_connector
-                    module_obj.location += starting_position + Vector(((rotation * module_size + (rotation * offset)) , (i*module_size+offset), 0))
-                    module_obj.rotation_euler = (0,0,radians(rotation * 90))
+            all_modules.append(
+                WFCModule(
+                    name = module_name,
+                    obj_source = module_obj,
+                    module_weight=default_weight,
+                    pos_x = posX_placeholder,
+                    neg_x= negX_placeholder, 
+                    pos_y = posY_placeholder, 
+                    neg_y = negY_placeholder
+                )
+            )
+            posX_placeholder = module_obj.y_neg_connector
+            negX_placeholder = module_obj.y_pos_connector
+            posY_placeholder = module_obj.x_pos_connector
+            negY_placeholder = module_obj.x_neg_connector
+            module_obj.location += starting_position + Vector(((rotation * module_size + (rotation * offset)) , (i*module_size+offset), 0))
+            module_obj.rotation_euler = (0,0,radians(rotation * 90))
 
     bpy.ops.object.select_all(action='DESELECT')
     for obj in modules_collection.objects:
@@ -212,65 +193,7 @@ def generate_modules(object_list, modules_collection):
     bpy.context.scene["total_modules"] = len(all_modules)
 
     for module in all_modules:
-        build_module_pairs(module)
-
-def build_module_pairs(module):
-    # module pos x pairs
-    for axis in Axis:
-        match axis:
-            case Axis.POS_X:
-                base_socket = module.pos_x
-                for other_module in all_modules:
-                    other_socket = other_module.neg_x
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
-                        module.pos_x_pairs.append(other_module)
-            case Axis.NEG_X:
-                base_socket = module.neg_x
-                for other_module in all_modules:
-                    other_socket = other_module.pos_x
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
-                        module.neg_x_pairs.append(other_module)
-
-            case Axis.POS_Y:
-                base_socket = module.pos_y
-                for other_module in all_modules:
-                    other_socket = other_module.neg_y
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
-                        module.pos_y_pairs.append(other_module)
-            case Axis.NEG_Y:
-                base_socket = module.neg_y
-                for other_module in all_modules:
-                    other_socket = other_module.pos_y
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
-                        module.neg_y_pairs.append(other_module)
-
-def sockets_match(socket_a, socket_b):
-    if (socket_a == 'ROAD'):
-            if (socket_b == 'ROAD'):
-                return True
-            else:
-                return False
-    if (socket_a == 'BUILDING'):
-        if (socket_b == 'BUILDING'):
-            return True
-        else:
-            return False
-    if (socket_a == 'PAVEMENTPOS'):
-        if (socket_b == 'PAVEMENTNEG'):
-            return True
-        else:
-            return False
-    if (socket_a == 'PAVEMENTNEG'):
-        if (socket_b == 'PAVEMENTPOS'):
-            return True
-        else:
-            return False
-
-
+        build_module_pairs(module, all_modules)
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
     """Tooltip"""
@@ -278,10 +201,8 @@ class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
     bl_label = "Clear Modules"
 
     def execute(self, context):
-        all_modules.clear()
-        delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
+        clear_all_modules()
         return {'FINISHED'}
-
 
 class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
     bl_label = "Build Grid"
@@ -301,7 +222,6 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
         if obj:
             layout.prop(obj, "remaining_modules")
 
-
 class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "object.build_wfc_grid"
@@ -311,9 +231,8 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
     #     check col exists
 
     def execute(self, context):
-
-        grid_collection = get_collection_by_name(CollectionNames.Grid.value)
-        build_wfc_grid(grid_collection, all_modules)
+        clear_all_cells()
+        build_wfc_grid(all_modules)
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
@@ -322,11 +241,8 @@ class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
     bl_label = "Clear Grid"
 
     def execute(self, context):
-        delete_objects_and_meshes(
-            get_all_objects_from_collection(CollectionNames.Grid.value)
-        )
+        clear_all_cells()
         return {'FINISHED'}
-
 class OBJECT_OT_FullCollapse(bpy.types.Operator):
     """FullCollapse Tooltip"""
     bl_idname = "object.full_collapse"
@@ -346,66 +262,32 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
 
         # uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
         uncollapsed_cells = uncollapsed_grid_cells.values()
-        print("-----------------------")
-        print(f"Remaining keys: {len([k for k in uncollapsed_grid_cells])}")
-        print(f"Remaining cells/values: {len([k for k in uncollapsed_cells])}")
-
-        # TODO: Combine the below, have teh cell_obj be a parameter of cell.
         cell = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
-        debug_coords = cell.get_coords_set()
-        # print(f"Cell chosen: {cell} with coords: {debug_coords}")
-
         collapse_cell(cell)
-        # propagate
         propagate(cell)
         del uncollapsed_grid_cells[cell.get_coords_set()]
 
-        # DEBUG: Grabbing the physical mesh object and updating its data, purely for debug UI
         cell_obj = cell.mesh_obj
-        # print(f"cell obj remaining modules was: {cell_obj.remaining_modules}")
         cell_obj.remaining_modules = cell.number_of_modules_remaining()
-        # print(f"cell obj remaining modules is now: {cell_obj.remaining_modules}")
-        # print(f"Cell collapsed: {cell.isCollapsed}")
-        # print(f"Module chosen: {cell.return_collapsed_module().name}")
-        # del debug_all_grid_cells[debug_coords]
-
-
-        # print(f"Remaining keys: {len([k for k in uncollapsed_grid_cells])}")
-        # print(f"Remaining cells/values: {len([k for k in uncollapsed_cells])}")
-        # print("-----------------------")
-
-
 
         return {'FINISHED'}
 
 def duplicate_and_move_and_return(target_obj, target_location):
-    # Get the objects by name
-    # source_obj = bpy.data.objects.get(source_obj_name)
-    # target_obj = bpy.data.objects.get(target_obj_name)
-    
     duplicate = target_obj.copy()
 
     # TODO: Hard copy of the mesh data. maybe needed, maybe not
     duplicate.data = target_obj.data.copy()
-    # bpy.context.collection.objects.link(duplicate)
-    # 
-    # Move the duplicate to object A's location
     duplicate.location = target_location
     return duplicate
 
-
 def propagate(collapsed_cell):
-    # initiate list of cells affected
     affected_cells = [collapsed_cell]
     all_cell_keys = [key for key in all_grid_cells.keys()]
     # TODO: purpose of this is to allow me to update meshData/material inputs
-    cells_to_update=[]
-    # while that list has something
+
     while len(affected_cells) >0:
-        # pick an affected cell
         affected_cell = affected_cells[0]
         affected_cells.remove(affected_cell)
-        # loop through axes
         for axis in Axis:
             possible_pairs = []
             neighbour_coords = affected_cell.get_neighbour_coords_set(axis)
@@ -414,11 +296,8 @@ def propagate(collapsed_cell):
             if neighbour_coords in all_cell_keys:
                 print(f"Key {neighbour_coords} in all grid cells")
                 neighbour_cell = all_grid_cells[neighbour_coords]
-            # else:
-                # print(f"Skipping Key {neighbour_coords}")
 
                 if (neighbour_cell and neighbour_cell.isCollapsed == False):
-                    # print(f"Affected cell {affected_cell} has uncollapsed neighbour at {neighbour_coords}")
                     match axis:
                         case Axis.POS_X:
                             for module in affected_cell.possibleModules:
@@ -436,18 +315,14 @@ def propagate(collapsed_cell):
 
                     invalid_modules = [module for module in neighbour_cell.possibleModules if module not in possible_pairs]
                     if len(invalid_modules) > 0:
-                        # print(f"\tand it has invalid modules")
                         neighbour_cell.remove_invalid_modules(invalid_modules)
                         affected_cells.append(neighbour_cell)
-
 
 def get_lowest_entropy_cells(uncollapsed_cells):
     current_fewest_modules = 9999
     lowest_entropy_cells = []
     for cell in uncollapsed_cells:
         if cell.number_of_modules_remaining() < current_fewest_modules:
-            # New record low found. Set the current lowest amount to this, 
-            # reassign possible cel list to a new list with just this
             current_fewest_modules = cell.number_of_modules_remaining()
             lowest_entropy_cells = [cell]
         elif cell.number_of_modules_remaining() == current_fewest_modules:
@@ -455,8 +330,9 @@ def get_lowest_entropy_cells(uncollapsed_cells):
     return lowest_entropy_cells
 
 def collapse_process():
-    # Throw exception below if not
+    # TODO: Throw exception below if not
     if (len(all_grid_cells) != 0):
+        # TODO: Uncollapsed cell already exists elsewhere
         uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
         while len(uncollapsed_cells) != 0:
             cell_to_collapse = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
@@ -465,16 +341,12 @@ def collapse_process():
             del uncollapsed_grid_cells[cell_to_collapse.get_coords_set()]
             propagate(cell_to_collapse)
 
-    else:
-        print("All Grid Cells is Empty")
-
 def collapse_cell(cell):
     # TODO: Repalce below with def get_highest_weight_modules(modules)
     scored_modules = [(build_module_score(module.module_weight), module) for module in cell.possibleModules]
     module_to_return = scored_modules[0]
     # TODO: Magioc numbers, replace with scored module class -> if current_s_module.score > ...
     for scored_module in scored_modules:
-        print(f"Scored Module: {scored_module[1].name}")
         if scored_module[0] > module_to_return[0]:
             module_to_return = scored_module
     cell.possibleModules = [module_to_return[1]]
@@ -488,17 +360,14 @@ def collapse_cell(cell):
 def build_module_score(module_weight):
     return module_weight * random.randint(1, 10001)
 
-
 all_grid_cells = {}
 uncollapsed_grid_cells = {}
 debug_all_grid_cells = {}
 
-all_grid_holders = {}
-debug_all_grid_holders = {}
+# all_grid_holders = {}
 
-
-def build_wfc_grid(grid_collection, all_wfc_modules):
-
+def build_wfc_grid(all_wfc_modules):
+    grid_collection = get_collection_by_name(CollectionNames.Grid.value)
     x_size = 10
     y_size = 10
     for x in range(x_size):
@@ -513,10 +382,6 @@ def build_wfc_grid(grid_collection, all_wfc_modules):
             cell_obj.name = f"{x:02d}_{y:02d}_cell"
             # TODO: Currently fails when the below was already the active collection. Modify method so that if its already in colelction then skip
             link_object_to_single_collection(cell_obj, grid_collection)
-            # USE WFCCEll?
-            # TODO: Delete when not needed
-            all_grid_holders[(x, y)] = cell_obj
-            debug_all_grid_holders[(x, y)] = cell_obj
 
             cell = WFCCell(
                 posX = x, 
@@ -527,84 +392,61 @@ def build_wfc_grid(grid_collection, all_wfc_modules):
             all_grid_cells[(x,y)] = cell
             uncollapsed_grid_cells[(x, y)] = cell
 
-
 class Socket(Enum):
     ROAD_CENTRE = "Road_Centre"
     PAVEMENT_POS = "Pavement_Positive"
     PAVEMENT_NEG = "Pavement_Negative"
     BUILDING = "Building"
 
-
-# class MaterialPrimitives(Enum):
+# class PrimitiveModules(Enum):
 #     Building = "Building_Primitive"
 #     Pavement = "Pavement_Primitive"
 #     Road = "Road_Primitive"
+#     Corner = "Corner_Primitive"
 
-
-class PrimitiveModules(Enum):
-    Building = "Building_Primitive"
-    Pavement = "Pavement_Primitive"
-    Road = "Road_Primitive"
-    Corner = "Corner_Primitive"
-
-# TODO: replace the below system, possibly just make them modules
 all_primitives = {}
-all_primitive_data = []
 
-def build_all_primitives(primitives_collection):
+def build_all_primitives():
+    # TODO: check if collections exist
+    primitives_collection = get_collection_by_name(CollectionNames.Primitives.value)
     build_all_primitive_materials()
-    # for material_name in [
-    #     MaterialPrimitives.Building.value,
-    #     MaterialPrimitives.Pavement.value,
-    #     MaterialPrimitives.Road.value
-    # ]:
-    #     match material_name:
-    #         case MaterialPrimitives.Building.value:
-    #             build_primitive_material(material_name, (0.8, 0.4, 0.2, 1.0))
-    #         case MaterialPrimitives.Pavement.value:
-    #             build_primitive_material(material_name, (0.1, 0.4, 0.8, 1.0))
-    #         case MaterialPrimitives.Road.value:
-    #             build_primitive_material(material_name, (0.05, 0.05, 0.05, 1.0))
-    #         case default:
-    #             build_primitive_material("failure", (0.0, 0.0, 0.0, 1.0))
+    primitives = build_default_primitives()
+    # building_primitive = Primitive(
+    #     name=PrimitiveModules.Building.value,
+    #     primitive_type="BUILDING",
+    #     verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, 0.0), (-4.0, 4.0, -0.4), (-4.0, 4.0, 0.0), (4.0, -4.0, -0.4),
+    #            (4.0, -4.0, 0.0), (4.0, 4.0, -0.4), (4.0, 4.0, 0.0)],
+    #     faces=[(0, 1, 3, 2), (6, 7, 5, 4), (2, 3, 7, 6), (4, 5, 1, 0), (7, 3, 1, 5)],
+    #     mat_indices=[0, 0, 0, 0, 0],
+    #     material_names=[
+    #         MaterialPrimitives.Building.value
+    #     ],
+    #     pos_x_connector = "BUILDING",
+    #     neg_x_connector = "BUILDING",
+    #     pos_y_connector = "BUILDING",
+    #     neg_y_connector = "BUILDING"
+    # )
 
-
-    building_primitive = Primitive(
-        name=PrimitiveModules.Building.value,
-        primitive_type="BUILDING",
-        verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, 0.0), (-4.0, 4.0, -0.4), (-4.0, 4.0, 0.0), (4.0, -4.0, -0.4),
-               (4.0, -4.0, 0.0), (4.0, 4.0, -0.4), (4.0, 4.0, 0.0)],
-        faces=[(0, 1, 3, 2), (6, 7, 5, 4), (2, 3, 7, 6), (4, 5, 1, 0), (7, 3, 1, 5)],
-        mat_indices=[0, 0, 0, 0, 0],
-        material_names=[
-            MaterialPrimitives.Building.value
-        ],
-        pos_x_connector = "BUILDING",
-        neg_x_connector = "BUILDING",
-        pos_y_connector = "BUILDING",
-        neg_y_connector = "BUILDING"
-    )
-
-    pavement_primitive = Primitive(  
-        name=PrimitiveModules.Pavement.value,
-        primitive_type="PAVEMENT",
-        verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, -0.2), (-4.0, 4.0, -0.4), (-4.0, 4.0, -0.2), (4.0, -4.0, -0.4),
-               (4.0, -4.0, -0.2), (4.0, 4.0, -0.4), (4.0, 4.0, -0.2), (0.0, 4.0, -0.4), (0.0, 4.0, -0.2),
-               (0.0, -4.0, -0.4), (0.0, -4.0, -0.2), (-4.0, -4.0, 0.0), (-4.0, 4.0, 0.0),
-               (0.0, 4.0, 0.0), (0.0, -4.0, 0.0)],
-        faces=[(0, 1, 3, 2), (6, 7, 5, 4), (8, 9, 7, 6), (11, 15, 12, 1), (11, 9, 14, 15), (7, 9, 11, 5),
-               (4, 5, 11, 10),
-               (2, 3, 9, 8), (14, 13, 12, 15), (3, 1, 12, 13), (9, 3, 13, 14), (10, 11, 1, 0)],
-        mat_indices=[0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0],
-        material_names=[
-            MaterialPrimitives.Pavement.value,
-            MaterialPrimitives.Road.value
-        ],
-        pos_x_connector = "ROAD",
-        neg_x_connector = "BUILDING",
-        pos_y_connector = "PAVEMENTPOS",
-        neg_y_connector = "PAVEMENTNEG"
-    )
+    # pavement_primitive = Primitive(  
+    #     name=PrimitiveModules.Pavement.value,
+    #     primitive_type="PAVEMENT",
+    #     verts=[(-4.0, -4.0, -0.4), (-4.0, -4.0, -0.2), (-4.0, 4.0, -0.4), (-4.0, 4.0, -0.2), (4.0, -4.0, -0.4),
+    #            (4.0, -4.0, -0.2), (4.0, 4.0, -0.4), (4.0, 4.0, -0.2), (0.0, 4.0, -0.4), (0.0, 4.0, -0.2),
+    #            (0.0, -4.0, -0.4), (0.0, -4.0, -0.2), (-4.0, -4.0, 0.0), (-4.0, 4.0, 0.0),
+    #            (0.0, 4.0, 0.0), (0.0, -4.0, 0.0)],
+    #     faces=[(0, 1, 3, 2), (6, 7, 5, 4), (8, 9, 7, 6), (11, 15, 12, 1), (11, 9, 14, 15), (7, 9, 11, 5),
+    #            (4, 5, 11, 10),
+    #            (2, 3, 9, 8), (14, 13, 12, 15), (3, 1, 12, 13), (9, 3, 13, 14), (10, 11, 1, 0)],
+    #     mat_indices=[0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+    #     material_names=[
+    #         MaterialPrimitives.Pavement.value,
+    #         MaterialPrimitives.Road.value
+    #     ],
+    #     pos_x_connector = "ROAD",
+    #     neg_x_connector = "BUILDING",
+    #     pos_y_connector = "PAVEMENTPOS",
+    #     neg_y_connector = "PAVEMENTNEG"
+    # )
 
     # road_primitive = Primitive(
     #     name=PrimitiveModules.Road.value,
@@ -621,26 +463,24 @@ def build_all_primitives(primitives_collection):
     #     pos_y_connector = "ROAD",
     #     neg_y_connector = "ROAD"
     # )
-    corner_primitive = Primitive(
-        name=PrimitiveModules.Corner.value,
-        primitive_type="CORNER",
-        verts=[(4.0, -4.0, -0.4), (4.0, -4.0, -0.2), (4.0, 4.0, -0.2), (0.0, 4.0, -0.2), (0.0, -4.0, -0.4), (0.0, -4.0, -0.2), (-4.0, -4.0, 0.0), (-4.0, 0.0, -0.2), (-4.0, 4.0, -0.2), (0.0, -4.0, 0.0), (4.0, 0.0, -0.2), (0.0, 0.0, -0.2), (0.0, 0.0, 0.0), (-4.0, 0.0, 0.0)],
-        faces= [(10, 11, 5, 1), (0, 1, 5, 4), (12, 13, 6, 9), (11, 3, 8, 7), (11, 7, 13, 12), (2, 3, 11, 10), (5, 11, 12, 9)],
-        mat_indices=[1, 1, 0, 1, 1, 1, 0],
-        material_names=[
-            MaterialPrimitives.Pavement.value,
-            MaterialPrimitives.Road.value
-        ],
-        pos_x_connector = "ROAD",
-        neg_x_connector = "PAVEMENTPOS",
-        pos_y_connector = "ROAD",
-        neg_y_connector = "PAVEMENTNEG"
-    )
-    all_primitive_data.append([building_primitive, pavement_primitive, corner_primitive])
-    for i, primitive in enumerate([building_primitive, pavement_primitive, corner_primitive]):
+    # corner_primitive = Primitive(
+    #     name=PrimitiveModules.Corner.value,
+    #     primitive_type="CORNER",
+    #     verts=[(4.0, -4.0, -0.4), (4.0, -4.0, -0.2), (4.0, 4.0, -0.2), (0.0, 4.0, -0.2), (0.0, -4.0, -0.4), (0.0, -4.0, -0.2), (-4.0, -4.0, 0.0), (-4.0, 0.0, -0.2), (-4.0, 4.0, -0.2), (0.0, -4.0, 0.0), (4.0, 0.0, -0.2), (0.0, 0.0, -0.2), (0.0, 0.0, 0.0), (-4.0, 0.0, 0.0)],
+    #     faces= [(10, 11, 5, 1), (0, 1, 5, 4), (12, 13, 6, 9), (11, 3, 8, 7), (11, 7, 13, 12), (2, 3, 11, 10), (5, 11, 12, 9)],
+    #     mat_indices=[1, 1, 0, 1, 1, 1, 0],
+    #     material_names=[
+    #         MaterialPrimitives.Pavement.value,
+    #         MaterialPrimitives.Road.value
+    #     ],
+    #     pos_x_connector = "ROAD",
+    #     neg_x_connector = "PAVEMENTPOS",
+    #     pos_y_connector = "ROAD",
+    #     neg_y_connector = "PAVEMENTNEG"
+    # )
+    for i, primitive in enumerate(primitives):
         build_from_primitive_data(primitive, primitives_collection,
                          location=(i * (module_size * 2), i * (module_size * 0), 0))
-
 
 def build_from_primitive_data(primitive, primitives_collection, location):
     mesh_data = bpy.data.meshes.new(name=primitive.name)
@@ -663,29 +503,6 @@ def build_from_primitive_data(primitive, primitives_collection, location):
     mesh_obj.x_neg_connector = primitive.neg_x_connector
     mesh_obj.y_pos_connector = primitive.pos_y_connector
     mesh_obj.y_neg_connector = primitive.neg_y_connector
-
-# def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
-#     old_material = bpy.data.materials.get(material_name)
-#     if not old_material:
-#         mat = bpy.data.materials.new(name=material_name)
-#         mat.use_nodes = True
-
-#         # Clear default nodes
-#         nodes = mat.node_tree.nodes
-#         nodes.clear()
-
-#         # Add Diffuse BSDF and Material Output nodes
-#         diffuse_node = nodes.new(type="ShaderNodeBsdfDiffuse")
-#         output_node = nodes.new(type="ShaderNodeOutputMaterial")
-
-#         # Set the color
-#         diffuse_node.inputs['Color'].default_value = colour
-
-#         # Link Diffuse to Output
-#         mat.node_tree.links.new(diffuse_node.outputs['BSDF'], output_node.inputs['Surface'])
-
-#         # Enable backface culling
-#         mat.use_backface_culling = True
 
 OPERATORS = [
                 OBJECT_OT_WFCClearAll,
@@ -746,7 +563,6 @@ def register():
         items=CONNECTORS
     )
     def update_remaining_modules(self, context):
-        # Force viewport update when remaining_modules changes
         context.view_layer.update()
     
     bpy.types.Object.remaining_modules = bpy.props.IntProperty(
@@ -754,8 +570,6 @@ def register():
         description="Remaining variants",
         update=update_remaining_modules
     )
-
-
 
 def unregister():
     for r_class in REGISTER_CLASSES:

@@ -10,6 +10,7 @@ def build_all_primitive_materials():
     build_primitive_material(MaterialPrimitives.Building.value, (0.8, 0.4, 0.2, 1.0))
     build_primitive_material(MaterialPrimitives.Pavement.value, (0.1, 0.4, 0.8, 1.0))
     build_primitive_material(MaterialPrimitives.Road.value, (0.05, 0.05, 0.05, 1.0))
+    build_debug_modules_mat()
 
 def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
     old_material = bpy.data.materials.get(material_name)
@@ -34,8 +35,6 @@ def build_primitive_material(material_name, colour=(0.8, 0.4, 0.2, 1.0)):
         # Enable backface culling
         mat.use_backface_culling = True
 
-def build_wfc_mats():
-    build_debug_modules_mat()
 
 def get_or_create_material(material_name):
     material = bpy.data.materials.get(material_name)

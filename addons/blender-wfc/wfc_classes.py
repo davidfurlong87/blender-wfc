@@ -25,6 +25,63 @@ class WFCModule:
             case Axis.NEG_Y:
                 return self.neg_y_pairs
 
+
+def build_module_pairs(module, all_modules):
+    for axis in Axis:
+        match axis:
+            case Axis.POS_X:
+                base_socket = module.pos_x
+                for other_module in all_modules:
+                    other_socket = other_module.neg_x
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
+                        module.pos_x_pairs.append(other_module)
+            case Axis.NEG_X:
+                base_socket = module.neg_x
+                for other_module in all_modules:
+                    other_socket = other_module.pos_x
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
+                        module.neg_x_pairs.append(other_module)
+
+            case Axis.POS_Y:
+                base_socket = module.pos_y
+                for other_module in all_modules:
+                    other_socket = other_module.neg_y
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
+                        module.pos_y_pairs.append(other_module)
+            case Axis.NEG_Y:
+                base_socket = module.neg_y
+                for other_module in all_modules:
+                    other_socket = other_module.pos_y
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
+                        module.neg_y_pairs.append(other_module)
+
+def sockets_match(socket_a, socket_b):
+    if (socket_a == 'ROAD'):
+            if (socket_b == 'ROAD'):
+                return True
+            else:
+                return False
+    if (socket_a == 'BUILDING'):
+        if (socket_b == 'BUILDING'):
+            return True
+        else:
+            return False
+    if (socket_a == 'PAVEMENTPOS'):
+        if (socket_b == 'PAVEMENTNEG'):
+            return True
+        else:
+            return False
+    if (socket_a == 'PAVEMENTNEG'):
+        if (socket_b == 'PAVEMENTPOS'):
+            return True
+        else:
+            return False
+
+
 class Primitive:
     def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector):
         self.name = name
