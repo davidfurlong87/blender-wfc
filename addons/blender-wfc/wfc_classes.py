@@ -1,5 +1,8 @@
 import bpy
 from enum import Enum
+from .collectiontools.collection_creation import *
+from mathutils import Vector
+
 class WFCModule:
     def __init__(self, name, obj_source, module_weight, pos_x, neg_x, pos_y, neg_y):
         self.name = name
@@ -100,16 +103,12 @@ class WFCCell:
         self.posX = posX
         self.posY = posY
         self.coordinates = WFCCoordinates(posX, posY)
-        # self.possibleVariantIds = possibleVariantIds[:]
         self.possibleModules = possibleModules[:]
         self.isCollapsed = False
-        # TODO: Implement the below
-        # self.cell_obj = cell_obj
         self.mesh_obj = mesh_obj
 
     def __str__(self):
         return f"{self.posX, self.posY}"
-#        return f"{self.posX}/{self.posY}"
 
     def get_coords(self):
         return [self.posX, self.posY]
@@ -132,11 +131,16 @@ class WFCCell:
         return len(self.possibleModules)
     
     def return_collapsed_module(self):
-        if (self.isCollapsed):
+        # TODO: Add a setter for isCollapsed, then remove the check for len(self.possibleModules)
+        if (self.isCollapsed and len(self.possibleModules) == 1):
             return self.possibleModules[0]
         else:
             # TODO: EXCEPTION
             print(f"Cell {self.posX, self.posY} NOT YET COLLAPSED")
+
+    def replace_mesh_obj(self, new_obj):
+        delete_object_by_name(self.mesh_obj.name)
+        self.mesh_obj = new_obj
 
     def remove_invalid_modules(self, invalid_modules):
         for module in invalid_modules:
@@ -147,6 +151,62 @@ class WFCCell:
         
         # Update now happens automatically via property callback
 
+class WFCPlot:
+    def __init__(self, world_pos, local_bounds, parent_cell):
+        self.world_pos = world_pos
+        self.local_bounds = local_bounds  # Local bounds within the 8x8 module
+        self.parent_cell = parent_cell
+        self.is_processed = False
+
+    def get_world_bounds(self):
+        """Convert local bounds to world coordinates"""
+        cell_world_pos = Vector((self.parent_cell.posX * module_size, 
+                                self.parent_cell.posY * module_size, 0))
+        return [(cell_world_pos.x + bound[0], cell_world_pos.y + bound[1]) 
+                for bound in self.local_bounds]
+
+class BuildingPlot(WFCPlot):
+    def __init__(self, world_pos, local_bounds, parent_cell):
+        super().__init__(world_pos, local_bounds, parent_cell)
+        self.building_group_id = None
+
+
+class WFCPlotGroup:
+    def __init__(self, group_id, plots):
+        self.group_id = group_id
+        self.plots = plots
+        self.combined_bounds = self._calculate_combined_bounds()
+        self.building_grid_size = self._calculate_building_grid_size()
+    
+    def _calculate_combined_bounds(self):
+        """Calculate the bounding box of all plots in this group"""
+        all_bounds = []
+        for plot in self.plots:
+            all_bounds.extend(plot.get_world_bounds())
+        
+        min_x = min(bound[0] for bound in all_bounds)
+        min_y = min(bound[1] for bound in all_bounds)
+        max_x = max(bound[0] for bound in all_bounds)
+        max_y = max(bound[1] for bound in all_bounds)
+        
+        return (min_x, min_y, max_x, max_y)
+    
+    def _calculate_building_grid_size(self):
+        """Determine grid size for building generation based on plot size"""
+        bounds = self.combined_bounds
+        width = bounds[2] - bounds[0]
+        height = bounds[3] - bounds[1]
+        
+        # Example: 1 grid cell per 2x2m area
+        grid_x = max(1, int(width / 2))
+        grid_y = max(1, int(height / 2))
+        
+        return (grid_x, grid_y)
+    
+class BuildingPlotGroup(WFCPlotGroup):
+    def __init__(self, group_id, plots):
+        super().__init__(group_id, plots)
+        self.building_modules = []  # To be filled with selected building modules
 
 # TODO:rename posX/Y. this looks like its an axis, just x/y is fine
 class WFCCoordinates:

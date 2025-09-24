@@ -6,6 +6,7 @@ bl_category_name = "wfc"
 
 class CollectionNames(Enum):
     Primitives = "WFC_Primitives"
+    UserPrimitives = "WFC_User_Primitives"
     Modules = "WFC_Modules"
     Grid = "WFC_Grid"
     Debug = "WFC_Debug"

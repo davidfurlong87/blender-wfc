@@ -93,6 +93,13 @@ def get_or_create_collection(collection_name, b_delete_objects=False):
 def move_objects_to_new_collection(collection_name):
     bpy.ops.object.move_to_collection(collection_index=0, is_new=True, new_collection_name=collection_name)
 
+def duplicate_and_move_and_return(target_obj, target_location):
+    duplicate = target_obj.copy()
+
+    # TODO: Hard copy of the mesh data. maybe needed, maybe not
+    duplicate.data = target_obj.data.copy()
+    duplicate.location = target_location
+    return duplicate
 
 # TODO: Check for usage and remove
 # Deprecated

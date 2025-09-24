@@ -30,11 +30,14 @@ class OBJECT_OT_BuildDefaultCollections(bpy.types.Operator):
             CollectionNames.Grid.value,
             CollectionNames.Modules.value,
             CollectionNames.Primitives.value,
-            CollectionNames.Debug.value
+            CollectionNames.Debug.value,
+            CollectionNames.UserPrimitives.value
 
         ]
-        # TODO: var needed?
-        default_collections = [build_or_return_collection(collection_to_create, True) for collection_to_create in collections_to_create]
+        for collection_to_create in collections_to_create:
+            build_or_return_collection(collection_to_create, True)
+        # # TODO: var needed?
+        # default_collections = [build_or_return_collection(collection_to_create, True) for collection_to_create in collections_to_create]
 
         return {'FINISHED'}
 
