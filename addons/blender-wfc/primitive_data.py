@@ -3,6 +3,88 @@ import bpy
 from .wfc_classes import Primitive
 from .wfc_materials import MaterialPrimitives
 from enum import Enum
+from .wfc_values import bl_category_name
+from .primitive_generation_tools import mesh_to_mesh_data
+
+class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
+    """Managing the creation of Primitive data"""
+    bl_label = "Prim Gen"
+    bl_idname = "OBJECT_PT_WFCPrimitiveBuilderPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = bl_category_name
+
+    def draw(self, context):
+        layout = self.layout
+        # Var for primitives in scene
+        # Import/export for primitives types/connectors/plot_definitions 
+        obj = context.object
+        if obj:
+            
+            # TODO: check in code or in object properties?   
+            if obj.primitive_type and obj.primitive_type != 'NONE':
+                layout.prop(obj, "primitive_type")
+            else:
+                row = layout.row()
+                layout.operator("object.wfc_convert_to_primitive")
+
+            # if connectors
+                #     layout.prop(obj, "x_pos_connector")
+                #     layout.prop(obj, "x_neg_connector")
+                #     layout.prop(obj, "y_pos_connector")
+                #     layout.prop(obj, "y_neg_connector")
+            # else    
+                # button to add connectors
+                # layout.operator("object.connector")
+                    # TODO: other conditional for unique plot groups
+                    # TODO: Edit mode operator for adding vertex group to plots definition?
+                        # TODO: for above, allow for selection from current plots, or to assign a new one
+                    # TODO: Edit mode operator for adding vertex group (edge) to connectors
+                        # TODO: for above, allow for selection from current connectors, or to assign a new one
+            # else
+                # layout.operator("object.primitive_establisher")                   
+
+class OBJECT_OT_WFCAssignPrimitiveType(bpy.types.Operator):
+    """Assigns a pre-existing WFC Primitive Type to Object"""
+    bl_idname = "object.wfc_assign_primitive_type"
+    bl_label = "Assign Primitive Type"
+
+    
+    def execute(self, context):
+
+        # TODO: The below, or panel.redraw or whatever
+        context.view_layer.update()
+
+        return {'FINISHED'}
+
+class OBJECT_OT_WFCConvertToPrimitive(bpy.types.Operator):
+    """Takes User data and converts to a primitive"""
+    bl_idname = "object.wfc_convert_to_primitive"
+    bl_label = "Convert to primitive"
+
+    def execute(self, context):
+        obj = context.object
+        # TODO: below should always be teh case when hitting this?
+        if obj:
+            # TODO: check if already in primitives?
+            mesh_to_mesh_data(obj, print_debug = True)
+        else:
+            return {'ERROR'}
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCPrimitiveBuilder(bpy.types.Operator):
+    """Scan User Collection and Build Primitives from custom data"""
+    bl_idname = "object.wfc_primitive_builder"
+    bl_label = "Build from custom data"
+
+    def execute(self, context):
+        # If d_userprimitives == 0
+            # return error
+        # Check user data dictionary/list
+        # if non-empty delete
+        # clear_all_primitives()
+        return {'FINISHED'}
 
 class PrimitiveModules(Enum):
     Building = "Building_Primitive"
@@ -71,3 +153,12 @@ def pavement_primitive():
         pos_y_connector = "PAVEMENTPOS",
         neg_y_connector = "PAVEMENTNEG"
     )
+
+PRIMITIVE_OPERATORS = [
+    OBJECT_OT_WFCConvertToPrimitive,
+    OBJECT_OT_WFCPrimitiveBuilder
+]
+
+PRIMITIVE_PANELS = [
+    OBJECT_PT_WFCPrimitiveBuilderPanel
+]

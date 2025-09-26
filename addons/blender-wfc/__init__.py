@@ -23,6 +23,11 @@ if "bpy" in locals():
         importlib.reload(wfc_grid_builder)
     if "wfc_plots" in locals():
         importlib.reload(wfc_plots)
+    if "wfc_enums" in locals():
+        importlib.reload(wfc_enums)
+    # TODO: how to do this when not used here?
+    if "primitive_generation_tools" in locals():
+        importlib.reload(primitive_generation_tools)
 
     # Reload submodules - simpler approach
     try:
@@ -37,10 +42,14 @@ from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 
 from .wfc_values import bl_category_name, CollectionNames, module_size
 from .collectiontools.collection_creation import *
-from .wfc_enums import CONNECTORS
-from .primitive_data import build_default_primitives, PrimitiveModules
+from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES
+from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS
+# TODO: how to do this when not used here?
+from .primitive_generation_tools import *
+
 from.wfc_grid_builder import *
 from.wfc_plots import *
+
 
 bl_info = {
     "name": "wfc",
@@ -73,13 +82,7 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
         scene = context.scene
         layout.prop(scene, "total_modules")
 
-        # obj = context.object
-        # if obj:
-        #     layout.prop(obj, "primitive_type")
-        #     layout.prop(obj, "x_pos_connector")
-        #     layout.prop(obj, "x_neg_connector")
-        #     layout.prop(obj, "y_pos_connector")
-        #     layout.prop(obj, "y_neg_connector")
+
 
 class OBJECT_OT_WFCClearAll(bpy.types.Operator):
     """Tooltip"""
@@ -122,7 +125,6 @@ class OBJECT_OT_UserPrimitives(bpy.types.Operator):
 
     def execute(self, context):
         clear_all_primitives()
-        # build_all_primitives()
         return {'FINISHED'}
 
 class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
@@ -473,12 +475,12 @@ OPERATORS = [
                 OBJECT_OT_ClearWFCGrid,
                 OBJECT_OT_DebugCollapse,
                 OBJECT_OT_FullCollapse
-            ] + COLLECTION_OPERATORS
+            ] + COLLECTION_OPERATORS + PRIMITIVE_OPERATORS
 
 PANELS = [
              OBJECT_PT_GenerateAndAssign,
             OBJECT_PT_WFCGridPanel
-         ] + COLLECTION_PANELS
+         ] + COLLECTION_PANELS + PRIMITIVE_PANELS
 
 TYPE_CLASSES = []
 
@@ -494,12 +496,7 @@ def register():
     bpy.types.Object.primitive_type = bpy.props.EnumProperty(
         name="Primitive",
         description="Classification of object",
-        items=[
-            ('ROAD_STRAIGHT', "Road_Straight", ""),
-            ('PAVEMENT', "Pavement", ""),
-            ('BUILDING', "Building", ""),
-            ('CORNER', "Corner", "")
-        ]
+        items=PRIMITIVE_TYPES
     )
     bpy.types.Object.x_pos_connector = bpy.props.EnumProperty(
         name="XPos",
