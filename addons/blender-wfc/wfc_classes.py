@@ -86,7 +86,7 @@ def sockets_match(socket_a, socket_b):
 
 
 class Primitive:
-    def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector):
+    def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector, vertex_group_data):
         self.name = name
         self.primitive_type = primitive_type
         self.verts = verts
@@ -97,6 +97,7 @@ class Primitive:
         self.neg_x_connector =neg_x_connector
         self.pos_y_connector =pos_y_connector
         self.neg_y_connector =neg_y_connector
+        self.vertex_group_data = vertex_group_data
 
 class WFCCell:
     def __init__(self, posX, posY, possibleModules, mesh_obj):

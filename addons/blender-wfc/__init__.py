@@ -19,13 +19,16 @@ if "bpy" in locals():
         importlib.reload(wfc_values)
     if "primitive_data" in locals():
         importlib.reload(primitive_data)
+    if "primitive_data_actual" in locals():
+        importlib.reload(primitive_data_actual)
     if "wfc_grid_builder" in locals():
         importlib.reload(wfc_grid_builder)
     if "wfc_plots" in locals():
         importlib.reload(wfc_plots)
+    # TODO: how to do this when not used here? can i have it reload inside of a different file?
     if "wfc_enums" in locals():
         importlib.reload(wfc_enums)
-    # TODO: how to do this when not used here?
+
     if "primitive_generation_tools" in locals():
         importlib.reload(primitive_generation_tools)
 
@@ -42,13 +45,15 @@ from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 
 from .wfc_values import bl_category_name, CollectionNames, module_size
 from .collectiontools.collection_creation import *
-from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES
-from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS
+from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES
+from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
 # TODO: how to do this when not used here?
 from .primitive_generation_tools import *
+from .primitive_data_actual import *
 
 from.wfc_grid_builder import *
 from.wfc_plots import *
+
 
 
 bl_info = {
@@ -88,6 +93,9 @@ class OBJECT_OT_WFCClearAll(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "object.wfc_clear_all"
     bl_label = "Reset Everything"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = bl_category_name
 
     def execute(self, context):
         clear_all_primitives()
@@ -443,6 +451,8 @@ def build_all_primitives():
                          location=(i * (module_size * 2), i * (module_size * 0), 0))
 
 def build_from_primitive_data(primitive, primitives_collection, location):
+    """Create a new mesh object with vertex groups from captured data"""
+
     mesh_data = bpy.data.meshes.new(name=primitive.name)
     mesh_obj = bpy.data.objects.new(primitive.name, mesh_data)
     mesh_obj.location = location
@@ -458,11 +468,14 @@ def build_from_primitive_data(primitive, primitives_collection, location):
     for i, poly in enumerate(mesh_data.polygons):
         poly.material_index = primitive.mat_indices[i]
     
+
+
     mesh_obj.primitive_type = primitive.primitive_type
     mesh_obj.x_pos_connector = primitive.pos_x_connector
     mesh_obj.x_neg_connector = primitive.neg_x_connector
     mesh_obj.y_pos_connector = primitive.pos_y_connector
     mesh_obj.y_neg_connector = primitive.neg_y_connector
+    apply_vertex_groups_to_object(mesh_obj, primitive.vertex_group_data)
 
 OPERATORS = [
                 OBJECT_OT_WFCClearAll,
@@ -496,7 +509,7 @@ def register():
     bpy.types.Object.primitive_type = bpy.props.EnumProperty(
         name="Primitive",
         description="Classification of object",
-        items=PRIMITIVE_TYPES
+        items = get_primitive_type_items
     )
     bpy.types.Object.x_pos_connector = bpy.props.EnumProperty(
         name="XPos",
