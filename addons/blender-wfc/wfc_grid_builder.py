@@ -32,7 +32,17 @@ def build_wfc_grid(all_wfc_modules, all_grid_cells, uncollapsed_grid_cells):
                 posX = x, 
                 posY = y, 
                 possibleModules=all_wfc_modules,
-                mesh_obj = cell_obj
+                mesh_obj = cell_obj,
+                world_pos = cell_obj_location
                 )
             all_grid_cells[(x,y)] = cell
             uncollapsed_grid_cells[(x, y)] = cell
+
+def build_inner_grid():
+    # take all current grid cells 
+
+    # loop through each
+
+        # for each, loop through faces
+            # if face has matching
+    all_grid_cells

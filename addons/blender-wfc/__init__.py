@@ -28,6 +28,8 @@ if "bpy" in locals():
     # TODO: how to do this when not used here? can i have it reload inside of a different file?
     if "wfc_enums" in locals():
         importlib.reload(wfc_enums)
+    if "primitive_data_actual" in locals():
+        importlib.reload(primitive_data_actual)
 
     if "primitive_generation_tools" in locals():
         importlib.reload(primitive_generation_tools)
@@ -258,6 +260,12 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
         layout.operator("object.clear_wfc_grid")
         layout.operator("object.debug_collapse")
         layout.operator("object.full_collapse")
+        
+        # Debug section
+        layout.separator()
+        layout.label(text="Debug Tools:")
+        layout.operator("object.debug_building_plots")
+        
         obj = context.object
         if obj:
             layout.prop(obj, "remaining_modules")
@@ -295,6 +303,37 @@ class OBJECT_OT_FullCollapse(bpy.types.Operator):
 
         # TODO: Add building plot processing after collapse is complete
         # process_building_plots_after_collapse()
+        return {'FINISHED'}
+
+class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
+    """Debug: Create 2x2 planes for all building plot faces in current modules"""
+    bl_idname = "object.debug_building_plots"
+    bl_label = "Debug Building Plots"
+
+    def execute(self, context):
+        global all_modules
+        
+        if not all_modules:
+            self.report({'ERROR'}, "No WFC modules found. Build modules first.")
+            return {'CANCELLED'}
+        
+        # TODO: quick method to check if outer grid collapsed
+        cell = all_grid_cells[0]
+        module = cell.return_collapsed_module()
+        if not module:
+            return {'CANCELLED'}
+
+        total_planes_created = 0
+        for cell in all_grid_cells:
+            module = cell.return_collapsed_module()
+            module.debug_create_building_plot_planes(center_vector=cell.world_pos)
+
+
+        # for module in all_modules:
+        #     planes = module.debug_create_building_plot_planes()
+        #     total_planes_created += len(planes)
+        
+        self.report({'INFO'}, f"Created {total_planes_created} debug building plot planes")
         return {'FINISHED'}
 
 class OBJECT_OT_DebugCollapse(bpy.types.Operator):
@@ -487,7 +526,8 @@ OPERATORS = [
                 OBJECT_OT_BuildWFCGrid,     
                 OBJECT_OT_ClearWFCGrid,
                 OBJECT_OT_DebugCollapse,
-                OBJECT_OT_FullCollapse
+                OBJECT_OT_FullCollapse,
+                OBJECT_OT_DebugBuildingPlots
             ] + COLLECTION_OPERATORS + PRIMITIVE_OPERATORS
 
 PANELS = [

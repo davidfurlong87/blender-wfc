@@ -20,18 +20,16 @@ def mesh_to_mesh_data(obj, print_debug = False):
         mat_indices = [p.material_index for p in mesh.polygons]
         materials = [mat.name for mat in obj.data.materials if mat]
 
-        vertex_groups = obj.vertex_groups
+        # vertex_groups = obj.vertex_groups
         vertex_group_data = capture_vertex_groups(obj)
 
         if print_debug:
             print(f"Verts, Faces, Materials and Vertex Groups for {obj.name}")
-            print(f"verts = {verts}")
-            print(f"faces = {faces}")
-            print(f"materials = {materials}")
-            print(f"mat_indices = {mat_indices}")
+            print(f"verts = {verts},")
+            print(f"faces = {faces},")
+            print(f"materials = {materials},")
+            print(f"mat_indices = {mat_indices},")
             print(f"vertex_groups = {vertex_group_data}")
-            # for mat_name in materials:
-            #     print(f"mat = bpy.data.materials.get('{mat_name}')")
         return {
             'verts': verts,
             'faces': faces,

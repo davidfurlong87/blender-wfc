@@ -1,6 +1,7 @@
 import bpy
 from enum import Enum
 from .collectiontools.collection_creation import *
+from .wfc_values import module_size
 from mathutils import Vector
 
 class WFCModule:
@@ -27,6 +28,79 @@ class WFCModule:
                 return self.pos_y_pairs
             case Axis.NEG_Y:
                 return self.neg_y_pairs
+
+    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector = (0, 0, 0)):
+        """
+        Debug function: Find faces in 'building_plot' vertex group and create 2x2 planes for each
+        """
+        if not self.obj_source or not self.obj_source.data:
+            print(f"No valid obj_source for module {self.name}")
+            return []
+        
+        # Get the building_plot vertex group
+        building_plot_vg = self.obj_source.vertex_groups.get('building_plot')
+        if not building_plot_vg:
+            print(f"No 'building_plot' vertex group found in {self.obj_source.name}")
+            return []
+        
+        # Get vertices that belong to building_plot vertex group
+        building_plot_vertices = set()
+        for vert_index, vertex in enumerate(self.obj_source.data.vertices):
+            for group in vertex.groups:
+                if group.group == building_plot_vg.index:
+                    building_plot_vertices.add(vert_index)
+                    break
+        
+        print(f"Found {len(building_plot_vertices)} vertices in building_plot group")
+        
+        # Find faces where ALL vertices are in building_plot
+        building_plot_faces = []
+        for face_index, face in enumerate(self.obj_source.data.polygons):
+            if all(vert_index in building_plot_vertices for vert_index in face.vertices):
+                building_plot_faces.append(face_index)
+        
+        print(f"Found {len(building_plot_faces)} faces in building_plot group")
+        
+        if not building_plot_faces:
+            print("No building plot faces found")
+            return []
+        
+        # Get or create debug collection
+        debug_collection = get_or_create_collection(debug_collection_name)
+        
+        # Create 2x2 planes for each building plot face
+        created_planes = []
+        for face_index in building_plot_faces:
+            face = self.obj_source.data.polygons[face_index]
+            
+            # Calculate face center in world coordinates
+            face_center = Vector((0, 0, 0))
+            for vert_index in face.vertices:
+                vert_world_pos = self.obj_source.matrix_world @ self.obj_source.data.vertices[vert_index].co
+                face_center += vert_world_pos
+            face_center /= len(face.vertices)
+            
+            # Create 2x2 plane at face center
+            bpy.ops.mesh.primitive_plane_add(
+                size=2.0, 
+                location=(face_center + center_vector),
+                rotation=(0, 0, 0)
+            )
+            
+            plane_obj = bpy.context.active_object
+            plane_obj.name = f"{self.name}_building_plot_face_{face_index}"
+            
+            # Add some height offset for visibility
+            plane_obj.location.z += 1.1
+            
+            # Link to debug collection
+            link_object_to_single_collection(plane_obj, debug_collection)
+            created_planes.append(plane_obj)
+            
+            print(f"Created debug plane for face {face_index} at {face_center}")
+        
+        print(f"Created {len(created_planes)} debug building plot planes for module {self.name}")
+        return created_planes
 
 
 def build_module_pairs(module, all_modules):
@@ -93,20 +167,27 @@ class Primitive:
         self.faces = faces
         self.mat_indices = mat_indices
         self.material_names = material_names
-        self.pos_x_connector =pos_x_connector
-        self.neg_x_connector =neg_x_connector
-        self.pos_y_connector =pos_y_connector
-        self.neg_y_connector =neg_y_connector
+        self.pos_x_connector = pos_x_connector
+        self.neg_x_connector = neg_x_connector
+        self.pos_y_connector = pos_y_connector
+        self.neg_y_connector = neg_y_connector
         self.vertex_group_data = vertex_group_data
+    
+    # def vertex_groups_to_faces(vertex_group_to_match):
+        # loop through faces
+            # IF FACE in vertex_group_to_match
+                # 
+
 
 class WFCCell:
-    def __init__(self, posX, posY, possibleModules, mesh_obj):
+    def __init__(self, posX, posY, possibleModules, mesh_obj, world_pos):
         self.posX = posX
         self.posY = posY
         self.coordinates = WFCCoordinates(posX, posY)
         self.possibleModules = possibleModules[:]
         self.isCollapsed = False
         self.mesh_obj = mesh_obj
+        self.world_pos = world_pos
 
     def __str__(self):
         return f"{self.posX, self.posY}"

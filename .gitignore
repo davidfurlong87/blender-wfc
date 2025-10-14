@@ -8,3 +8,6 @@ addons/blender-wfc/wfc_dev.blend
 
 addons/blender-wfc/wfc_dev_mac.blend1
 
+addons/blender-wfc/wfc_dev_mesh_gen.blend1
+.vscode/settings.json
+.*settings.json
