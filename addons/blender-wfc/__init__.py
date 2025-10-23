@@ -45,7 +45,7 @@ from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 
-from .wfc_values import bl_category_name, CollectionNames, module_size
+from .wfc_values import bl_category_name, CollectionNames, module_size, primitive_offset_x
 from .collectiontools.collection_creation import *
 from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES
 from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
@@ -95,9 +95,9 @@ class OBJECT_OT_WFCClearAll(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "object.wfc_clear_all"
     bl_label = "Reset Everything"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = bl_category_name
+    # bl_space_type = 'VIEW_3D'
+    # bl_region_type = 'UI'
+    # bl_category = bl_category_name
 
     def execute(self, context):
         clear_all_primitives()
@@ -318,15 +318,34 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
             return {'CANCELLED'}
         
         # TODO: quick method to check if outer grid collapsed
-        cell = all_grid_cells[0]
-        module = cell.return_collapsed_module()
-        if not module:
-            return {'CANCELLED'}
-
+        # cell = all_grid_cells[(0, 0)]
+        # module = cell.return_collapsed_module()
+        # if not module:
+        #     return {'CANCELLED'}
+        keys = all_grid_cells.keys()
         total_planes_created = 0
-        for cell in all_grid_cells:
+        iterations = 0
+        print("-------------------")
+        print("Entering building plots")
+        print("-------------------")
+        for key in keys:
+            cell = all_grid_cells[key]
+            print(f"Debugging cell {cell.get_coords_set()}")
             module = cell.return_collapsed_module()
-            module.debug_create_building_plot_planes(center_vector=cell.world_pos)
+            print(f"Module is: {module}")
+            center_vector=cell.world_pos_as_vector()
+            print(f"center_vector={center_vector}")
+            planes = module.debug_create_building_plot_planes(center_vector=cell.world_pos_as_vector())
+            # planes = module.debug_create_building_plot_planes()
+            total_planes_created += len(planes)
+            
+            if len(planes) > 1:
+                iterations += 1
+                if iterations >0:
+                    break
+        # for cell in all_grid_cells:
+            # module = cell.return_collapsed_module()
+            # module.debug_create_building_plot_planes(center_vector=cell.world_pos)
 
 
         # for module in all_modules:
@@ -369,7 +388,7 @@ def propagate(collapsed_cell):
 
             # TODO: crappy getOrElse, change
             if neighbour_coords in all_cell_keys:
-                print(f"Key {neighbour_coords} in all grid cells")
+                # print(f"Key {neighbour_coords} in all grid cells")
                 neighbour_cell = all_grid_cells[neighbour_coords]
 
                 if (neighbour_cell and neighbour_cell.isCollapsed == False):
@@ -484,10 +503,15 @@ def build_all_primitives():
     primitives_collection = get_collection_by_name(CollectionNames.Primitives.value)
     build_all_primitive_materials()
     primitives = build_default_primitives()
-
+    
     for i, primitive in enumerate(primitives):
         build_from_primitive_data(primitive, primitives_collection,
-                         location=(i * (module_size * 2), i * (module_size * 0), 0))
+                         location=(
+                             (i * (module_size * 2)) - primitive_offset_x, 
+                             i * (module_size * 0), 
+                             0
+                             )
+                         )
 
 def build_from_primitive_data(primitive, primitives_collection, location):
     """Create a new mesh object with vertex groups from captured data"""
@@ -581,6 +605,7 @@ def register():
     )
 
 def unregister():
+    # TODO: reverse this for safe unregister
     for r_class in REGISTER_CLASSES:
         bpy.utils.unregister_class(r_class)
 

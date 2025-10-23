@@ -2,7 +2,7 @@ import bpy
 from enum import Enum
 
 bl_category_name = "wfc"
-
+# primitive_gen_offset = (-10, -10, 0)
 
 class CollectionNames(Enum):
     Primitives = "WFC_Primitives"
@@ -26,7 +26,7 @@ class CollectionNames(Enum):
 # Base
 module_size = 8
 
-primitive_offset_x = module_size * 4
+primitive_offset_x = module_size * 8
 
 import bpy
 

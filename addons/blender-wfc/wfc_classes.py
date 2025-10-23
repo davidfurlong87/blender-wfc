@@ -18,6 +18,9 @@ class WFCModule:
         self.pos_y_pairs = []
         self.neg_y_pairs = []
 
+    def __str__(self):
+        return self.name
+
     def get_all_pairs_fox_axis(self, axis):
         match axis:
             case Axis.POS_X:
@@ -29,7 +32,7 @@ class WFCModule:
             case Axis.NEG_Y:
                 return self.neg_y_pairs
 
-    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector = (0, 0, 0)):
+    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector = Vector((0, 0, 0))):
         """
         Debug function: Find faces in 'building_plot' vertex group and create 2x2 planes for each
         """
@@ -83,7 +86,8 @@ class WFCModule:
             # Create 2x2 plane at face center
             bpy.ops.mesh.primitive_plane_add(
                 size=2.0, 
-                location=(face_center + center_vector),
+                location=face_center + center_vector,
+
                 rotation=(0, 0, 0)
             )
             
@@ -103,80 +107,10 @@ class WFCModule:
         return created_planes
 
 
-def build_module_pairs(module, all_modules):
-    for axis in Axis:
-        match axis:
-            case Axis.POS_X:
-                base_socket = module.pos_x
-                for other_module in all_modules:
-                    other_socket = other_module.neg_x
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
-                        module.pos_x_pairs.append(other_module)
-            case Axis.NEG_X:
-                base_socket = module.neg_x
-                for other_module in all_modules:
-                    other_socket = other_module.pos_x
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
-                        module.neg_x_pairs.append(other_module)
-
-            case Axis.POS_Y:
-                base_socket = module.pos_y
-                for other_module in all_modules:
-                    other_socket = other_module.neg_y
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
-                        module.pos_y_pairs.append(other_module)
-            case Axis.NEG_Y:
-                base_socket = module.neg_y
-                for other_module in all_modules:
-                    other_socket = other_module.pos_y
-                    if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
-                        module.neg_y_pairs.append(other_module)
-
-def sockets_match(socket_a, socket_b):
-    if (socket_a == 'ROAD'):
-            if (socket_b == 'ROAD'):
-                return True
-            else:
-                return False
-    if (socket_a == 'BUILDING'):
-        if (socket_b == 'BUILDING'):
-            return True
-        else:
-            return False
-    if (socket_a == 'PAVEMENTPOS'):
-        if (socket_b == 'PAVEMENTNEG'):
-            return True
-        else:
-            return False
-    if (socket_a == 'PAVEMENTNEG'):
-        if (socket_b == 'PAVEMENTPOS'):
-            return True
-        else:
-            return False
 
 
-class Primitive:
-    def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector, vertex_group_data):
-        self.name = name
-        self.primitive_type = primitive_type
-        self.verts = verts
-        self.faces = faces
-        self.mat_indices = mat_indices
-        self.material_names = material_names
-        self.pos_x_connector = pos_x_connector
-        self.neg_x_connector = neg_x_connector
-        self.pos_y_connector = pos_y_connector
-        self.neg_y_connector = neg_y_connector
-        self.vertex_group_data = vertex_group_data
-    
-    # def vertex_groups_to_faces(vertex_group_to_match):
-        # loop through faces
-            # IF FACE in vertex_group_to_match
-                # 
+
+
 
 
 class WFCCell:
@@ -191,6 +125,9 @@ class WFCCell:
 
     def __str__(self):
         return f"{self.posX, self.posY}"
+    
+    # def create_building_plot_planes(self):
+
 
     def get_coords(self):
         return [self.posX, self.posY]
@@ -227,11 +164,15 @@ class WFCCell:
     def remove_invalid_modules(self, invalid_modules):
         for module in invalid_modules:
             self.possibleModules.remove(module)
-        print(f"mesh_obj.remaining_modules was: {self.mesh_obj.remaining_modules}")
+        # print(f"mesh_obj.remaining_modules was: {self.mesh_obj.remaining_modules}")
         self.mesh_obj.remaining_modules = len(self.possibleModules)
-        print(f"mesh_obj.remaining_modules is now: {self.mesh_obj.remaining_modules}")
+        # print(f"mesh_obj.remaining_modules is now: {self.mesh_obj.remaining_modules}")
         
         # Update now happens automatically via property callback
+    
+    def world_pos_as_vector(self):
+        return Vector((self.world_pos))
+    
 
 class WFCPlot:
     def __init__(self, world_pos, local_bounds, parent_cell):
@@ -304,6 +245,77 @@ class Axis(Enum):
     NEG_X = "NegX"
     POS_Y = "PosY"
     NEG_Y = "NegY"
+
+class Primitive:
+    def __init__(self, name, primitive_type, verts, faces, mat_indices, material_names,pos_x_connector,neg_x_connector,pos_y_connector,neg_y_connector, vertex_group_data):
+        self.name = name
+        self.primitive_type = primitive_type
+        self.verts = verts
+        self.faces = faces
+        self.mat_indices = mat_indices
+        self.material_names = material_names
+        self.pos_x_connector = pos_x_connector
+        self.neg_x_connector = neg_x_connector
+        self.pos_y_connector = pos_y_connector
+        self.neg_y_connector = neg_y_connector
+        self.vertex_group_data = vertex_group_data
+
+def sockets_match(socket_a, socket_b):
+    if (socket_a == 'ROAD'):
+            if (socket_b == 'ROAD'):
+                return True
+            else:
+                return False
+    if (socket_a == 'BUILDING'):
+        if (socket_b == 'BUILDING'):
+            return True
+        else:
+            return False
+    if (socket_a == 'PAVEMENTPOS'):
+        if (socket_b == 'PAVEMENTNEG'):
+            return True
+        else:
+            return False
+    if (socket_a == 'PAVEMENTNEG'):
+        if (socket_b == 'PAVEMENTPOS'):
+            return True
+        else:
+            return False
+
+def build_module_pairs(module, all_modules):
+    for axis in Axis:
+        match axis:
+            case Axis.POS_X:
+                base_socket = module.pos_x
+                for other_module in all_modules:
+                    other_socket = other_module.neg_x
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
+                        module.pos_x_pairs.append(other_module)
+            case Axis.NEG_X:
+                base_socket = module.neg_x
+                for other_module in all_modules:
+                    other_socket = other_module.pos_x
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
+                        module.neg_x_pairs.append(other_module)
+
+            case Axis.POS_Y:
+                base_socket = module.pos_y
+                for other_module in all_modules:
+                    other_socket = other_module.neg_y
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
+                        module.pos_y_pairs.append(other_module)
+            case Axis.NEG_Y:
+                base_socket = module.neg_y
+                for other_module in all_modules:
+                    other_socket = other_module.pos_y
+                    if sockets_match(base_socket, other_socket):
+                        # print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
+                        module.neg_y_pairs.append(other_module)
+
+
 
 # def safe_dictionary_get(dict, *keys):
 #     for key in keys:
