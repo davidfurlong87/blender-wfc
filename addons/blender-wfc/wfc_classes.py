@@ -17,6 +17,9 @@ class WFCModule:
         self.neg_x_pairs = []
         self.pos_y_pairs = []
         self.neg_y_pairs = []
+        # Cached building plot data (relative coordinates)
+        self.building_plot_faces_cache = None
+        self.building_plot_center_cache = None
 
     def __str__(self):
         return self.name
@@ -32,10 +35,14 @@ class WFCModule:
             case Axis.NEG_Y:
                 return self.neg_y_pairs
 
-    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector = Vector((0, 0, 0))):
+    def _calculate_building_plot_faces(self):
         """
-        Debug function: Find faces in 'building_plot' vertex group and create 2x2 planes for each
+        Calculate and cache building plot face data with relative coordinates
+        Returns: List of face data dictionaries with relative coordinates
         """
+        if self.building_plot_faces_cache is not None:
+            return self.building_plot_faces_cache
+        
         if not self.obj_source or not self.obj_source.data:
             print(f"No valid obj_source for module {self.name}")
             return []
@@ -57,37 +64,81 @@ class WFCModule:
         print(f"Found {len(building_plot_vertices)} vertices in building_plot group")
         
         # Find faces where ALL vertices are in building_plot
-        building_plot_faces = []
+        building_plot_face_indices = []
         for face_index, face in enumerate(self.obj_source.data.polygons):
             if all(vert_index in building_plot_vertices for vert_index in face.vertices):
-                building_plot_faces.append(face_index)
+                building_plot_face_indices.append(face_index)
         
-        print(f"Found {len(building_plot_faces)} faces in building_plot group")
+        print(f"Found {len(building_plot_face_indices)} faces in building_plot group")
         
-        if not building_plot_faces:
+        if not building_plot_face_indices:
             print("No building plot faces found")
+            self.building_plot_faces_cache = []
             return []
         
-        # Get or create debug collection
+        # Calculate module center in world coordinates for reference
+        obj_world_center = self.obj_source.matrix_world @ Vector((0, 0, 0))
+        self.building_plot_center_cache = obj_world_center
+        
+        # Process each face and store relative data
+        building_plot_faces_data = []
+        for face_index in building_plot_face_indices:
+            face = self.obj_source.data.polygons[face_index]
+            
+            # Calculate face center in world coordinates
+            face_center_world = Vector((0, 0, 0))
+            for vert_index in face.vertices:
+                vert_world_pos = self.obj_source.matrix_world @ self.obj_source.data.vertices[vert_index].co
+                face_center_world += vert_world_pos
+            face_center_world /= len(face.vertices)
+            
+            # Convert to relative coordinates (relative to module center)
+            face_center_relative = face_center_world - obj_world_center
+            
+            # Get face vertices in relative coordinates
+            face_vertices_relative = []
+            for vert_index in face.vertices:
+                vert_world_pos = self.obj_source.matrix_world @ self.obj_source.data.vertices[vert_index].co
+                vert_relative_pos = vert_world_pos - obj_world_center
+                face_vertices_relative.append(vert_relative_pos)
+            
+            face_data = {
+                'face_index': face_index,
+                'center_relative': face_center_relative,
+                'vertices_relative': face_vertices_relative,
+                'vertex_indices': list(face.vertices)
+            }
+            building_plot_faces_data.append(face_data)
+        
+        # Cache the result
+        self.building_plot_faces_cache = building_plot_faces_data
+        print(f"Cached {len(building_plot_faces_data)} building plot faces for module {self.name}")
+        
+        return building_plot_faces_data
+
+    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector=Vector((0, 0, 0))):
+        """
+        Debug function: Create 2x2 planes for each building plot face using cached data
+        """
+        building_plot_faces = self._calculate_building_plot_faces()
+        
+        if not building_plot_faces:
+            return []
+        
         debug_collection = get_or_create_collection(debug_collection_name)
         
         # Create 2x2 planes for each building plot face
         created_planes = []
-        for face_index in building_plot_faces:
-            face = self.obj_source.data.polygons[face_index]
+        for face_data in building_plot_faces:
+            face_index = face_data['face_index']
             
-            # Calculate face center in world coordinates
-            face_center = Vector((0, 0, 0))
-            for vert_index in face.vertices:
-                vert_world_pos = self.obj_source.matrix_world @ self.obj_source.data.vertices[vert_index].co
-                face_center += vert_world_pos
-            face_center /= len(face.vertices)
+            # Calculate world position from relative position and center_vector
+            world_position = face_data['center_relative'] + center_vector
             
-            # Create 2x2 plane at face center
+            # Create 2x2 plane at calculated position
             bpy.ops.mesh.primitive_plane_add(
                 size=2.0, 
-                location=face_center + center_vector,
-
+                location=world_position,
                 rotation=(0, 0, 0)
             )
             
@@ -97,20 +148,46 @@ class WFCModule:
             # Add some height offset for visibility
             plane_obj.location.z += 1.1
             
+            #TODO: Store face data as custom properties for reference. Check if working/needed
+            plane_obj['face_index'] = face_index
+            plane_obj['relative_center_x'] = face_data['center_relative'].x
+            plane_obj['relative_center_y'] = face_data['center_relative'].y
+            plane_obj['relative_center_z'] = face_data['center_relative'].z
+            
             # Link to debug collection
             link_object_to_single_collection(plane_obj, debug_collection)
             created_planes.append(plane_obj)
             
-            print(f"Created debug plane for face {face_index} at {face_center}")
+            print(f"Created debug plane for face {face_index} at relative pos {face_data['center_relative']}")
         
         print(f"Created {len(created_planes)} debug building plot planes for module {self.name}")
         return created_planes
 
+    def get_building_plot_faces_relative(self):
+        """
+        Public method to get cached building plot face data with relative coordinates
+        Returns: List of face data dictionaries
+        """
+        return self._calculate_building_plot_faces()
 
+    def clear_building_plot_cache(self):
+        """
+        Clear cached building plot data (useful if obj_source changes)
+        """
+        self.building_plot_faces_cache = None
+        self.building_plot_center_cache = None
 
+# EXAMPLE USAGE
+# First call - calculates and caches
+# module.debug_create_building_plot_planes(center_vector=Vector((10, 20, 0)))
 
+# Second call - uses cache, much faster
+# module.debug_create_building_plot_planes(center_vector=Vector((50, 100, 0)))
 
-
+# Access cached data directly
+# face_data = module.get_building_plot_faces_relative()
+# for face in face_data:
+#     print(f"Face {face['face_index']} center: {face['center_relative']}")
 
 
 class WFCCell:
@@ -125,9 +202,6 @@ class WFCCell:
 
     def __str__(self):
         return f"{self.posX, self.posY}"
-    
-    # def create_building_plot_planes(self):
-
 
     def get_coords(self):
         return [self.posX, self.posY]
@@ -164,11 +238,9 @@ class WFCCell:
     def remove_invalid_modules(self, invalid_modules):
         for module in invalid_modules:
             self.possibleModules.remove(module)
-        # print(f"mesh_obj.remaining_modules was: {self.mesh_obj.remaining_modules}")
         self.mesh_obj.remaining_modules = len(self.possibleModules)
-        # print(f"mesh_obj.remaining_modules is now: {self.mesh_obj.remaining_modules}")
         
-        # Update now happens automatically via property callback
+        # TODO: Update now happens automatically via property callback. Remove the above?
     
     def world_pos_as_vector(self):
         return Vector((self.world_pos))
@@ -290,14 +362,12 @@ def build_module_pairs(module, all_modules):
                 for other_module in all_modules:
                     other_socket = other_module.neg_x
                     if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} pos_x = {module.pos_x} and {other_module.name} neg_x = {other_module.neg_x}")
                         module.pos_x_pairs.append(other_module)
             case Axis.NEG_X:
                 base_socket = module.neg_x
                 for other_module in all_modules:
                     other_socket = other_module.pos_x
                     if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} neg_x = {module.neg_x} and {other_module.name} pos_x = {other_module.pos_x}")
                         module.neg_x_pairs.append(other_module)
 
             case Axis.POS_Y:
@@ -305,14 +375,12 @@ def build_module_pairs(module, all_modules):
                 for other_module in all_modules:
                     other_socket = other_module.neg_y
                     if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} pos_y = {module.pos_y} and {other_module.name} neg_y = {other_module.neg_y}")
                         module.pos_y_pairs.append(other_module)
             case Axis.NEG_Y:
                 base_socket = module.neg_y
                 for other_module in all_modules:
                     other_socket = other_module.pos_y
                     if sockets_match(base_socket, other_socket):
-                        # print(f"Pair: {module.name} neg_y = {module.neg_y} and {other_module.name} pos_y = {other_module.pos_y}")
                         module.neg_y_pairs.append(other_module)
 
 
