@@ -35,7 +35,35 @@ class WFCModule:
             case Axis.NEG_Y:
                 return self.neg_y_pairs
 
-    def _calculate_building_plot_faces(self):
+# UPNEXT: 
+    # def inner_grid_coords(global_module_size, inner_grid_module_size, in_faces):
+    #     divisions = global_module_size, inner_grid_module_size
+    #     faces = in_faces
+    #     # assuming outcer cell centre vector = (0,0,0)
+    #     # with inner module size == 2
+    #     for face in
+    #     for x in divisions:
+    #         for y in divisions:
+    #             inner_grid_coord = (x, y)
+
+    # def sort_faces_based_on_coords(faces_list, divisions_number):
+    #     # TODO: check if blender already does this sorting of faces
+    #     # sort faces_list based on x, 
+    #     returned_sorted_list = []
+    #     for x in range(1, divisions_number +1):
+    #         for y in range(1, divisions_number +1):
+    #             inner_coord = (x, y)
+    #             current_face = faces_list[0]
+    #             returned_sorted_list.append((inner_coord, current_face))
+    #             # set face in someway
+    #     # for face in faces_list:
+
+
+    #     return True
+
+            
+
+    def _calculate_building_plot_faces(self, inner_cell_size = 2):
         """
         Calculate and cache building plot face data with relative coordinates
         Returns: List of face data dictionaries with relative coordinates
@@ -98,15 +126,29 @@ class WFCModule:
             # Get face vertices in relative coordinates
             face_vertices_relative = []
             for vert_index in face.vertices:
+                # TODO: Ask what the hell the @ is
                 vert_world_pos = self.obj_source.matrix_world @ self.obj_source.data.vertices[vert_index].co
                 vert_relative_pos = vert_world_pos - obj_world_center
                 face_vertices_relative.append(vert_relative_pos)
+            
+            # TODO: Add some debug vertex groups maybe to work out how this is working
+            # TODO: assign magic numbers to vals
+            # Calculate grid coordinates (4x4 grid, bottom-left is (1,1))
+            # Assuming faces are 2x2 units and module is 8x8 units centered at origin
+            # Grid ranges from -4 to +4 in both axes, so we map to 1-4 grid coordinates
+            grid_x = int((face_center_relative.x + 4) / 2) + 1
+            grid_y = int((face_center_relative.y + 4) / 2) + 1
+            
+            # Clamp to valid range (1,1) to (4,4)
+            grid_x = max(1, min(4, grid_x))
+            grid_y = max(1, min(4, grid_y))
             
             face_data = {
                 'face_index': face_index,
                 'center_relative': face_center_relative,
                 'vertices_relative': face_vertices_relative,
-                'vertex_indices': list(face.vertices)
+                'vertex_indices': list(face.vertices),
+                'grid_coord': (grid_x, grid_y)
             }
             building_plot_faces_data.append(face_data)
         
@@ -116,7 +158,7 @@ class WFCModule:
         
         return building_plot_faces_data
 
-    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector=Vector((0, 0, 0))):
+    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector=Vector((0, 0, 0)), name_override = ""):
         """
         Debug function: Create 2x2 planes for each building plot face using cached data
         """
@@ -143,7 +185,7 @@ class WFCModule:
             )
             
             plane_obj = bpy.context.active_object
-            plane_obj.name = f"{self.name}_building_plot_face_{face_index}"
+            # plane_obj.name = f"{self.name}_building_plot_face_{face_index}"
             
             # Add some height offset for visibility
             plane_obj.location.z += 1.1
@@ -153,12 +195,21 @@ class WFCModule:
             plane_obj['relative_center_x'] = face_data['center_relative'].x
             plane_obj['relative_center_y'] = face_data['center_relative'].y
             plane_obj['relative_center_z'] = face_data['center_relative'].z
+            plane_obj['grid_coord_x'] = face_data['grid_coord'][0]
+            plane_obj['grid_coord_y'] = face_data['grid_coord'][1]
             
+            # Update the plane name to include grid coordinates
+            if name_override == "":
+                plane_obj.name = f"{self.name}_building_plot_({face_data['grid_coord'][0]},{face_data['grid_coord'][1]})_face_{face_index}"
+            else:
+                plane_obj.name = f"{name_override}_building_plot_@_({face_data['grid_coord'][0]},{face_data['grid_coord'][1]})"
+
+
             # Link to debug collection
             link_object_to_single_collection(plane_obj, debug_collection)
             created_planes.append(plane_obj)
             
-            print(f"Created debug plane for face {face_index} at relative pos {face_data['center_relative']}")
+            print(f"Created debug plane for face {face_index} at grid ({face_data['grid_coord'][0]},{face_data['grid_coord'][1]}) - relative pos {face_data['center_relative']}")
         
         print(f"Created {len(created_planes)} debug building plot planes for module {self.name}")
         return created_planes
@@ -199,6 +250,7 @@ class WFCCell:
         self.isCollapsed = False
         self.mesh_obj = mesh_obj
         self.world_pos = world_pos
+        self.inner_grid_cells = {}
 
     def __str__(self):
         return f"{self.posX, self.posY}"
@@ -244,6 +296,15 @@ class WFCCell:
     
     def world_pos_as_vector(self):
         return Vector((self.world_pos))
+    
+    def has_inner_grid(self):
+        if len(self.inner_grid_cells.keys()) > 0:
+            return True
+        else:
+            return False
+    
+    # def add_to_inner_grid(cell_to_add):
+
     
 
 class WFCPlot:

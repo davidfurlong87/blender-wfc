@@ -176,7 +176,6 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
 
 all_modules = []
 
-# def generate_modules(object_list, modules_collection):
 def generate_modules():
 
     object_list = get_all_primitives()
@@ -186,7 +185,7 @@ def generate_modules():
     offset = module_size * 2
     
     for i, primitive in enumerate(object_list):
-        primitive_data = all_primitives[primitive.name]
+        # primitive_data = all_primitives[primitive.name]
         posX_placeholder = primitive.x_pos_connector
         negX_placeholder = primitive.x_neg_connector
         posY_placeholder = primitive.y_pos_connector
@@ -330,13 +329,13 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
         print("-------------------")
         for key in keys:
             cell = all_grid_cells[key]
-            print(f"Debugging cell {cell.get_coords_set()}")
+            print(f"Creating debug mesh for cell: {key}")
+
             module = cell.return_collapsed_module()
             print(f"Module is: {module}")
             center_vector=cell.world_pos_as_vector()
             print(f"center_vector={center_vector}")
-            planes = module.debug_create_building_plot_planes(center_vector=cell.world_pos_as_vector())
-            # planes = module.debug_create_building_plot_planes()
+            planes = module.debug_create_building_plot_planes(center_vector=cell.world_pos_as_vector(), name_override = key)
             total_planes_created += len(planes)
             
             if len(planes) > 1:

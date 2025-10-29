@@ -38,11 +38,11 @@ def build_wfc_grid(all_wfc_modules, all_grid_cells, uncollapsed_grid_cells):
             all_grid_cells[(x,y)] = cell
             uncollapsed_grid_cells[(x, y)] = cell
 
-# def build_inner_grid():
+# def build_inner_grid(parent_cells_list):
 #     # take all current grid cells 
 
 #     # loop through each
-
+#     for cell in parent_cells_list
 #         # for each, loop through faces
 #             # if face has matching
 #     all_grid_cells
