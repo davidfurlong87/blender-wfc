@@ -9,6 +9,8 @@ import sys
 # Reload modules for development
 if "bpy" in locals():
     import importlib
+    if "wfc_operators" in locals():
+        importlib.reload(wfc_operators)
     if "wfc_collections" in locals():
         importlib.reload(wfc_collections)
     if "wfc_classes" in locals():
@@ -52,6 +54,7 @@ from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIV
 # TODO: how to do this when not used here?
 from .primitive_generation_tools import *
 from .primitive_data_actual import *
+from .wfc_operators import *
 
 from.wfc_grid_builder import *
 from.wfc_plots import *
@@ -117,7 +120,6 @@ def clear_all_primitives():
 
 def clear_all_modules():
     all_modules.clear()
-    # TODO: check if collections exist
     delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
 
 def clear_all_cells():
@@ -156,35 +158,31 @@ class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
         clear_all_primitives()
         return {'FINISHED'}
 
+# TODO: Currently coming from collection, make it code first. 
+# TODO: ALso check if there's a mismatch between code and mesh collection for all of these methods
 def get_all_primitives():
     return get_all_objects_from_collection(CollectionNames.Primitives.value)
 
 class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
-    """Tooltip"""
+    """Build Modules from Primitive Data"""
     bl_idname = "object.build_wfc_modules"
     bl_label = "Re/Generate Modules"
 
     def execute(self, context):
         clear_all_modules()
-        prims = get_all_primitives()
-        # prims = get_all_objects_from_collection(CollectionNames.Primitives.value)
-        if len(prims) > 0:
-            # generate_modules(prims,get_collection_by_name(CollectionNames.Modules.value))
+        # prims = get_all_primitives()
+        if len(get_all_primitives()) > 0:
             generate_modules()
-
         return {'FINISHED'}
 
 all_modules = []
 
 def generate_modules():
-
-    object_list = get_all_primitives()
     modules_collection = get_collection_by_name(CollectionNames.Modules.value)
     all_modules.clear()
-    starting_position = Vector((-200, 0,0))
+    starting_position = Vector((-50, -50, 0))    
     offset = module_size * 2
-    
-    for i, primitive in enumerate(object_list):
+    for i, primitive in enumerate(get_all_primitives()):
         # primitive_data = all_primitives[primitive.name]
         posX_placeholder = primitive.x_pos_connector
         negX_placeholder = primitive.x_neg_connector
@@ -192,7 +190,6 @@ def generate_modules():
         negY_placeholder = primitive.y_neg_connector
         default_weight = 1
         if (primitive.name == PrimitiveModules.Building.value):
-            print(f"Building: weight set t0 2")
             default_weight = 1.05
 
         for rotation in range(4):
@@ -212,7 +209,7 @@ def generate_modules():
                     obj_source = module_obj,
                     module_weight=default_weight,
                     pos_x = posX_placeholder,
-                    neg_x= negX_placeholder, 
+                    neg_x = negX_placeholder, 
                     pos_y = posY_placeholder, 
                     neg_y = negY_placeholder
                 )
@@ -228,7 +225,6 @@ def generate_modules():
     for obj in modules_collection.objects:
         obj.select_set(True)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-    print(f"Generated {len(all_modules)} modules from {len(object_list)} primitives.")
 
     # TODO: probably move this into an operator
     bpy.context.scene["total_modules"] = len(all_modules)
@@ -237,7 +233,7 @@ def generate_modules():
         build_module_pairs(module, all_modules)
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
-    """Tooltip"""
+    """Clear all Module Data and Meshes"""
     bl_idname = "object.clear_wfc_modules"
     bl_label = "Clear Modules"
 
@@ -260,7 +256,6 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
         layout.operator("object.debug_collapse")
         layout.operator("object.full_collapse")
         
-        # Debug section
         layout.separator()
         layout.label(text="Debug Tools:")
         layout.operator("object.debug_building_plots")
@@ -270,7 +265,7 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
             layout.prop(obj, "remaining_modules")
 
 class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
-    """Tooltip"""
+    """Build a Grid of Uncollapsed Cells"""
     bl_idname = "object.build_wfc_grid"
     bl_label = "Build Grid"
 
@@ -279,13 +274,12 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
 
     def execute(self, context):
         clear_all_cells()
-        # build_wfc_grid(all_modules)
         build_wfc_grid(all_modules,all_grid_cells,uncollapsed_grid_cells)
 
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
-    """Tooltip"""
+    """Deletes All Grid Cells and Clears Their Data"""
     bl_idname = "object.clear_wfc_grid"
     bl_label = "Clear Grid"
 
@@ -293,7 +287,7 @@ class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
         clear_all_cells()
         return {'FINISHED'}
 class OBJECT_OT_FullCollapse(bpy.types.Operator):
-    """FullCollapse Tooltip"""
+    """Takes all Uncollapsed Cells from the Grid and collapses each into a single Module"""
     bl_idname = "object.full_collapse"
     bl_label = "Full Collapse"
 
@@ -304,12 +298,14 @@ class OBJECT_OT_FullCollapse(bpy.types.Operator):
         # process_building_plots_after_collapse()
         return {'FINISHED'}
 
+# TODO: move to operators when we have a solution for all grid cells
 class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
     """Debug: Create 2x2 planes for all building plot faces in current modules"""
     bl_idname = "object.debug_building_plots"
     bl_label = "Debug Building Plots"
 
     def execute(self, context):
+        # TODO: ask what global is doing here
         global all_modules
         
         if not all_modules:
@@ -317,40 +313,28 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
             return {'CANCELLED'}
         
         # TODO: quick method to check if outer grid collapsed
-        # cell = all_grid_cells[(0, 0)]
-        # module = cell.return_collapsed_module()
-        # if not module:
-        #     return {'CANCELLED'}
+        if len(uncollapsed_grid_cells) > 0:
+            print(f"Cancelling debug: len(uncollapsed_grid_cells) > 0")
+            return {'CANCELLED'}
+        
         keys = all_grid_cells.keys()
         total_planes_created = 0
         iterations = 0
-        print("-------------------")
-        print("Entering building plots")
-        print("-------------------")
+
+        inner_grid = {}
         for key in keys:
             cell = all_grid_cells[key]
-            print(f"Creating debug mesh for cell: {key}")
-
-            module = cell.return_collapsed_module()
-            print(f"Module is: {module}")
-            center_vector=cell.world_pos_as_vector()
-            print(f"center_vector={center_vector}")
-            planes = module.debug_create_building_plot_planes(center_vector=cell.world_pos_as_vector(), name_override = key)
-            total_planes_created += len(planes)
-            
-            if len(planes) > 1:
-                iterations += 1
-                if iterations >0:
-                    break
-        # for cell in all_grid_cells:
+            planes = cell.debug_create_building_plot_planes_from_module()
             # module = cell.return_collapsed_module()
-            # module.debug_create_building_plot_planes(center_vector=cell.world_pos)
+            # planes = module.debug_create_building_plot_planes(center_vector=cell.world_pos_as_vector(), name_override = key)
+            total_planes_created += len(planes)
 
+            # if len(planes) > 1:
 
-        # for module in all_modules:
-        #     planes = module.debug_create_building_plot_planes()
-        #     total_planes_created += len(planes)
-        
+            # iterations += 1
+            # if iterations > 6:
+            #         break
+                
         self.report({'INFO'}, f"Created {total_planes_created} debug building plot planes")
         return {'FINISHED'}
 
@@ -360,7 +344,6 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
     bl_label = "Debug Collapse"  
 
     def execute(self, context):
-        # uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
         uncollapsed_cells = uncollapsed_grid_cells.values()
         cell = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
         collapse_cell(cell)
@@ -387,9 +370,7 @@ def propagate(collapsed_cell):
 
             # TODO: crappy getOrElse, change
             if neighbour_coords in all_cell_keys:
-                # print(f"Key {neighbour_coords} in all grid cells")
                 neighbour_cell = all_grid_cells[neighbour_coords]
-
                 if (neighbour_cell and neighbour_cell.isCollapsed == False):
                     match axis:
                         case Axis.POS_X:
@@ -404,7 +385,6 @@ def propagate(collapsed_cell):
                         case Axis.NEG_Y:
                             for module in affected_cell.possibleModules:
                                 possible_pairs.extend(module.neg_y_pairs)
-
 
                     invalid_modules = [module for module in neighbour_cell.possibleModules if module not in possible_pairs]
                     if len(invalid_modules) > 0:
@@ -427,21 +407,18 @@ def collapse_process():
     if (len(all_grid_cells) != 0):
         # TODO: Uncollapsed cell already exists elsewhere
         uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
-        # uncollapsed_cells = uncollapsed_grid_cells.values()
-
         while len(uncollapsed_cells) != 0:
             cell_to_collapse = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
             collapse_cell(cell_to_collapse)
             uncollapsed_cells.remove(cell_to_collapse)
-
             del uncollapsed_grid_cells[cell_to_collapse.get_coords_set()]
             propagate(cell_to_collapse)
 
 def collapse_cell(cell):
-    # TODO: Repalce below with def get_highest_weight_modules(modules)
+    # TODO: Replace below with def get_highest_weight_modules(modules)
     scored_modules = [(build_module_score(module.module_weight), module) for module in cell.possibleModules]
     module_to_return = scored_modules[0]
-    # TODO: Magioc numbers, replace with scored module class -> if current_s_module.score > ...
+    # TODO: Magic numbers, replace with scored module class -> if current_s_module.score > ...
     for scored_module in scored_modules:
         if scored_module[0] > module_to_return[0]:
             module_to_return = scored_module
@@ -461,34 +438,7 @@ all_grid_cells = {}
 uncollapsed_grid_cells = {}
 debug_all_grid_cells = {}
 
-# def build_wfc_grid(all_wfc_modules):
-#     grid_collection = get_collection_by_name(CollectionNames.Grid.value)
-#     x_size = 10
-#     y_size = 10
-#     # debug_mesh_size = 2
-#     debug_mesh_size = module_size
-#     for x in range(x_size):
-#         for y in range(y_size):
-#             cell_obj_location = (x * (debug_mesh_size), y * (debug_mesh_size), 0)
-#             bpy.ops.mesh.primitive_plane_add(size=debug_mesh_size, enter_editmode=False, align='WORLD', location=cell_obj_location, scale=(1, 1, 1))
-#             cell_obj = bpy.context.active_object
-#             cell_obj.data.materials.append(bpy.data.materials.get("debug_modules_mat"))
-#             cell_obj.remaining_modules = len(all_wfc_modules)
-#             cell_obj['remaining_modules'] = len(all_wfc_modules)
-#             cell_obj.data['remaining_modules'] = len(all_wfc_modules)
-#             cell_obj.name = f"{x:02d}_{y:02d}_cell"
-#             # TODO: Currently fails when the below was already the active collection. Modify method so that if its already in colelction then skip
-#             link_object_to_single_collection(cell_obj, grid_collection)
-
-#             cell = WFCCell(
-#                 posX = x, 
-#                 posY = y, 
-#                 possibleModules=all_wfc_modules,
-#                 mesh_obj = cell_obj
-#                 )
-#             all_grid_cells[(x,y)] = cell
-#             uncollapsed_grid_cells[(x, y)] = cell
-
+# TODO: USED? If not, delete
 class Socket(Enum):
     ROAD_CENTRE = "Road_Centre"
     PAVEMENT_POS = "Pavement_Positive"
@@ -507,7 +457,7 @@ def build_all_primitives():
         build_from_primitive_data(primitive, primitives_collection,
                          location=(
                              (i * (module_size * 2)) - primitive_offset_x, 
-                             i * (module_size * 0), 
+                             i * (module_size * 0) -10, 
                              0
                              )
                          )

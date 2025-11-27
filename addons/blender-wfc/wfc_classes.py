@@ -139,16 +139,17 @@ class WFCModule:
             grid_x = int((face_center_relative.x + 4) / 2) + 1
             grid_y = int((face_center_relative.y + 4) / 2) + 1
             
+            # TODO: refactor this from 1 -> 4 to 0 -> 3 scale
             # Clamp to valid range (1,1) to (4,4)
             grid_x = max(1, min(4, grid_x))
             grid_y = max(1, min(4, grid_y))
-            
+
             face_data = {
                 'face_index': face_index,
                 'center_relative': face_center_relative,
                 'vertices_relative': face_vertices_relative,
                 'vertex_indices': list(face.vertices),
-                'grid_coord': (grid_x, grid_y)
+                'grid_coord': (grid_x -1, grid_y - 1)
             }
             building_plot_faces_data.append(face_data)
         
@@ -158,7 +159,7 @@ class WFCModule:
         
         return building_plot_faces_data
 
-    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector=Vector((0, 0, 0)), name_override = ""):
+    def debug_create_building_plot_planes(self, debug_collection_name="Debug_Building_Plots", center_vector=Vector((0, 0, 0)), name_override = "", inner_grid_offset_vector = Vector((0, 0, 0)), plot_type = 'Building'):
         """
         Debug function: Create 2x2 planes for each building plot face using cached data
         """
@@ -171,7 +172,10 @@ class WFCModule:
         
         # Create 2x2 planes for each building plot face
         created_planes = []
+        coords_to_planes = {}
         for face_data in building_plot_faces:
+            x_coord = face_data['grid_coord'][0]
+            y_coord = face_data['grid_coord'][1]
             face_index = face_data['face_index']
             
             # Calculate world position from relative position and center_vector
@@ -190,29 +194,39 @@ class WFCModule:
             # Add some height offset for visibility
             plane_obj.location.z += 1.1
             
+
+            
+            # Update the plane name to include grid coordinates
+            if name_override == "":
+                plane_obj.name = f"{self.name}_{plot_type}_plot_({face_data['grid_coord'][0]},{face_data['grid_coord'][1]})_face_{face_index}"
+            else:
+                # UPNEXT: 
+                x_coord = int(face_data['grid_coord'][0] + inner_grid_offset_vector.x)
+                y_coord = int(face_data['grid_coord'][1] + inner_grid_offset_vector.y)
+                # real_x = int(face_data['grid_coord'][0] + inner_grid_offset_vector.x)
+                # real_y = int(face_data['grid_coord'][1] + inner_grid_offset_vector.y)
+                plane_obj.name = f"{name_override}_{plot_type}_plot_@_({x_coord},{y_coord})"
+
             #TODO: Store face data as custom properties for reference. Check if working/needed
             plane_obj['face_index'] = face_index
             plane_obj['relative_center_x'] = face_data['center_relative'].x
             plane_obj['relative_center_y'] = face_data['center_relative'].y
             plane_obj['relative_center_z'] = face_data['center_relative'].z
-            plane_obj['grid_coord_x'] = face_data['grid_coord'][0]
-            plane_obj['grid_coord_y'] = face_data['grid_coord'][1]
-            
-            # Update the plane name to include grid coordinates
-            if name_override == "":
-                plane_obj.name = f"{self.name}_building_plot_({face_data['grid_coord'][0]},{face_data['grid_coord'][1]})_face_{face_index}"
-            else:
-                plane_obj.name = f"{name_override}_building_plot_@_({face_data['grid_coord'][0]},{face_data['grid_coord'][1]})"
-
-
+            plane_obj['grid_coord_x'] = x_coord
+            plane_obj['grid_coord_y'] = y_coord
             # Link to debug collection
             link_object_to_single_collection(plane_obj, debug_collection)
+
             created_planes.append(plane_obj)
-            
+            coords_to_planes[(x_coord, y_coord)] = plane_obj
+
+
             print(f"Created debug plane for face {face_index} at grid ({face_data['grid_coord'][0]},{face_data['grid_coord'][1]}) - relative pos {face_data['center_relative']}")
-        
-        print(f"Created {len(created_planes)} debug building plot planes for module {self.name}")
-        return created_planes
+        if name_override == "":
+            print(f"Created {len(created_planes)} debug {plot_type} plot planes for module {self.name}")
+        # UPNEXT: Turn this list of planes into a map[Coord -> PlaneObj]
+        # return created_planes
+        return coords_to_planes
 
     def get_building_plot_faces_relative(self):
         """
@@ -227,6 +241,12 @@ class WFCModule:
         """
         self.building_plot_faces_cache = None
         self.building_plot_center_cache = None
+    
+    def get_inner_grid(self):
+        if self.has_inner_grid():
+            return self.inner_grid_cells
+
+
 
 # EXAMPLE USAGE
 # First call - calculates and caches
@@ -303,8 +323,33 @@ class WFCCell:
         else:
             return False
     
-    # def add_to_inner_grid(cell_to_add):
+    def inner_grid_vector(self, inner_grid_resolution = 4): # i.e 4x4
+        return Vector((self.posX * inner_grid_resolution, self.posY * inner_grid_resolution))
 
+    def debug_create_building_plot_planes_from_module(self):
+        inner_grid_offset_vector = self.inner_grid_vector(inner_grid_resolution = 4)
+        self.inner_grid_cells = self.return_collapsed_module().debug_create_building_plot_planes(center_vector=self.world_pos_as_vector(), name_override = self.get_coords_set(), inner_grid_offset_vector = inner_grid_offset_vector)
+        print(f"Plane debug for {self.posX, self.posY}:")
+        print(f"\tFace cache:")
+        module = self.return_collapsed_module()
+
+        for cached_face in module.building_plot_faces_cache:
+            print(cached_face['grid_coord'])
+
+            print(f"\t\t Grid Coord rel. to Module: {cached_face['grid_coord']}")
+            cell_pos = (cached_face['grid_coord'][0] + inner_grid_offset_vector.x, cached_face['grid_coord'][1] + inner_grid_offset_vector.y)
+            print(f"\t\t Grid Coord rel. to Cell {self.posX, self.posY}: {cell_pos}")
+            
+
+            # NOTES:
+            # 2/1
+            # 1/1, 2/1, 3/1, 4/1
+            # 5/1, 6/1, 7/1, 8/1
+
+            # 3/1 -> convert to pos-1, multiply by 4
+            # 1/1, 2/1, 3/1, 4/1
+            # 9/1, 10/1, 11/1, 12/1
+        return self.inner_grid_cells
     
 
 class WFCPlot:

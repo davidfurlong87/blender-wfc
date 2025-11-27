@@ -26,8 +26,5 @@ class CollectionNames(Enum):
 # Base
 module_size = 8
 
-primitive_offset_x = module_size * 8
-
-import bpy
-
+primitive_offset_x = module_size * 4
 
