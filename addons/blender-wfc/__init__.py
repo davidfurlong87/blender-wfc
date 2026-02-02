@@ -298,6 +298,7 @@ class OBJECT_OT_FullCollapse(bpy.types.Operator):
         # process_building_plots_after_collapse()
         return {'FINISHED'}
 
+debug_calculated_vgs = False
 # TODO: move to operators when we have a solution for all grid cells
 class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
     """Debug: Create 2x2 planes for all building plot faces in current modules"""
@@ -306,12 +307,22 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
 
     def execute(self, context):
         # TODO: ask what global is doing here
+        # Is it searching all 'files' and reporting what it finds?
         global all_modules
         
         if not all_modules:
             self.report({'ERROR'}, "No WFC modules found. Build modules first.")
             return {'CANCELLED'}
-        
+        global debug_calculated_vgs
+        if debug_calculated_vgs == False:
+            print("not yet calced vgs")
+            for module in all_modules:
+                print(module.name)
+                module._calculate_building_plot_faces(inner_cell_size = 2)
+            debug_calculated_vgs = True
+            return {'FINISHED'}
+
+
         # TODO: quick method to check if outer grid collapsed
         if len(uncollapsed_grid_cells) > 0:
             print(f"Cancelling debug: len(uncollapsed_grid_cells) > 0")

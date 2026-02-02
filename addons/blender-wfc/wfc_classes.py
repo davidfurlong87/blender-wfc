@@ -62,6 +62,11 @@ class WFCModule:
     #     return True
 
             
+    def is_sub_grid_calculated(self):
+        if self.building_plot_faces_cache is not None:
+            return True
+        else:
+            return False
 
     def _calculate_building_plot_faces(self, inner_cell_size = 2):
         """
@@ -328,17 +333,20 @@ class WFCCell:
 
     def debug_create_building_plot_planes_from_module(self):
         inner_grid_offset_vector = self.inner_grid_vector(inner_grid_resolution = 4)
-        self.inner_grid_cells = self.return_collapsed_module().debug_create_building_plot_planes(center_vector=self.world_pos_as_vector(), name_override = self.get_coords_set(), inner_grid_offset_vector = inner_grid_offset_vector)
+        # self.inner_grid_cells = self.return_collapsed_module().debug_create_building_plot_planes(center_vector=self.world_pos_as_vector(), name_override = self.get_coords_set(), inner_grid_offset_vector = inner_grid_offset_vector)
         print(f"Plane debug for {self.posX, self.posY}:")
-        print(f"\tFace cache:")
+        # print(f"\tFace cache:")
         module = self.return_collapsed_module()
+        print(f"Module {module.name}\n\tCalculated: {module.is_sub_grid_calculated()}")
 
-        for cached_face in module.building_plot_faces_cache:
-            print(cached_face['grid_coord'])
 
-            print(f"\t\t Grid Coord rel. to Module: {cached_face['grid_coord']}")
-            cell_pos = (cached_face['grid_coord'][0] + inner_grid_offset_vector.x, cached_face['grid_coord'][1] + inner_grid_offset_vector.y)
-            print(f"\t\t Grid Coord rel. to Cell {self.posX, self.posY}: {cell_pos}")
+
+        # for cached_face in module.building_plot_faces_cache:
+        #     print(cached_face['grid_coord'])
+
+        #     print(f"\t\t Grid Coord rel. to Module: {cached_face['grid_coord']}")
+        #     cell_pos = (cached_face['grid_coord'][0] + inner_grid_offset_vector.x, cached_face['grid_coord'][1] + inner_grid_offset_vector.y)
+        #     print(f"\t\t Grid Coord rel. to Cell {self.posX, self.posY}: {cell_pos}")
             
 
             # NOTES:
