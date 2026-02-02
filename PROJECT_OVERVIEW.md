@@ -1,0 +1,172 @@
+# Blender WFC - Wave Function Collapse Addon
+
+## Project Vision
+
+Create a high-performance, well-structured Blender addon that enables procedural environment generation using the Wave Function Collapse (WFC) algorithm. The goal is to allow users to create a small set of modular 3D models and automatically generate complete, coherent worlds from them.
+
+## Core Goals
+
+### 1. **Flexibility & Modularity**
+- Quick and easy transition between different model sets
+- Support for user-created primitives alongside default ones
+- Extensible connector and primitive type systems
+- Easy import/export of primitive definitions
+
+### 2. **Performance**
+- Efficient WFC algorithm implementation
+- Optimized mesh generation and manipulation
+- Minimal overhead during collapse process
+- Smart caching of computed data (e.g., building plot faces)
+
+### 3. **Code Quality**
+- Clean, maintainable architecture
+- Clear separation of concerns
+- Well-documented code
+- Consistent naming conventions
+- Proper error handling
+
+## Current Architecture
+
+### Data Flow Pipeline
+
+```
+User Models → Primitives → Modules → Grid Cells → Collapsed World
+```
+
+1. **Primitives**: Base building blocks with connection rules
+   - Defined geometry (vertices, faces, materials)
+   - Connector types on each edge (POS_X, NEG_X, POS_Y, NEG_Y)
+   - Vertex groups for special features (building plots, etc.)
+   - Primitive type classification
+
+2. **Modules**: Rotational variants of primitives
+   - 4 rotations (0°, 90°, 180°, 270°) generated per primitive
+   - Connector compatibility pairs calculated
+   - Module weights for probability control
+   - Cached building plot data
+
+3. **Grid Cells**: WFC state containers
+   - List of possible modules (entropy)
+   - Collapse state (collapsed/uncollapsed)
+   - Spatial coordinates
+   - Visual debug representation
+
+4. **Collapse Process**: WFC algorithm execution
+   - Entropy-based cell selection (lowest entropy first)
+   - Weighted random module selection
+   - Constraint propagation to neighbors
+   - Iterative until all cells collapsed
+
+### Key Components
+
+#### Core Classes (`wfc_classes.py`)
+- `Primitive`: Stores primitive geometry and metadata
+- `WFCModule`: Rotated module with connector pairs
+- `WFCCell`: Grid cell with possible modules
+- `WFCPlot` / `BuildingPlot`: Special plot areas for nested generation
+- `Axis`: Enum for directional operations
+
+#### Connector System (`wfc_enums.py`)
+- Defines how modules can connect to each other
+- Current types: ROAD, BUILDING, PAVEMENTPOS, PAVEMENTNEG
+- Extensible for new connection types
+
+#### Primitive Management
+- `primitive_data.py`: Primitive definitions and operators
+- `primitive_data_actual.py`: Hardcoded primitive geometry
+- `primitive_generation_tools.py`: Mesh data extraction utilities
+
+#### Grid & Collapse
+- `wfc_grid_builder.py`: Grid initialization
+- `__init__.py`: Main collapse algorithm and propagation logic
+
+#### Collections System
+- Organized Blender collections for different data types
+- WFC_Primitives, WFC_Modules, WFC_Grid, WFC_Debug
+
+### Advanced Features
+
+#### Building Plots
+- Vertex groups define special areas within primitives
+- Building plot faces cached per module
+- Support for nested WFC generation (buildings on plots)
+- Plot grouping for multi-cell structures
+
+## Known Issues & TODOs
+
+### Architecture Improvements Needed
+- [ ] Separate algorithm logic from Blender UI code
+- [ ] Move global state (`all_modules`, `all_grid_cells`) into proper data structures
+- [ ] Implement proper error handling and validation
+- [ ] Create consistent API for primitive import/export
+- [ ] Refactor module reload system in `__init__.py`
+
+### Performance Optimizations
+- [ ] Profile collapse process for bottlenecks
+- [ ] Optimize mesh duplication during collapse
+- [ ] Consider lazy mesh generation (only create visible cells)
+- [ ] Cache connector pair calculations
+
+### Feature Gaps
+- [ ] User primitive workflow incomplete
+- [ ] No save/load for generated worlds
+- [ ] Limited 3D support (currently 2D grid)
+- [ ] No undo support for collapse operations
+- [ ] Building plot generation not fully implemented
+
+### Code Quality
+- [ ] Inconsistent naming (posX/posY vs x/y)
+- [ ] Magic numbers throughout (replace with constants)
+- [ ] Typos in method names (`get_all_pairs_fox_axis`)
+- [ ] TODO comments need addressing
+- [ ] Missing docstrings on many functions
+
+## Development Workflow
+
+### Testing Changes
+1. Modify addon code
+2. Reload addon in Blender (or restart Blender)
+3. Use Debug Menu to test pipeline:
+   - Regen Default Primitives
+   - Re/Generate Modules
+   - Build Grid
+   - Debug Collapse (single step) or Full Collapse
+
+### Adding New Primitives
+1. Create geometry in Blender
+2. Assign materials
+3. Set connector properties (x_pos_connector, etc.)
+4. Add vertex groups for special features
+5. Use "Convert to primitive" operator
+6. Copy printed data to `primitive_data_actual.py`
+
+## Future Vision
+
+### Short Term
+- Stabilize user primitive workflow
+- Improve performance of collapse process
+- Better error handling and user feedback
+- Documentation for end users
+
+### Medium Term
+- 3D grid support (vertical stacking)
+- Nested WFC for building interiors
+- Constraint painting (force certain modules in areas)
+- Biome/zone system for varied regions
+
+### Long Term
+- Real-time preview during collapse
+- Multi-threaded collapse process
+- GPU acceleration for large grids
+- Integration with other procedural systems (vegetation, props)
+- Export to game engines
+
+## Notes for AI Assistant
+
+- Always check for existing patterns before suggesting new approaches
+- Performance is critical - avoid unnecessary mesh operations
+- Maintain compatibility with Blender 2.80+
+- Respect the existing connector system when adding features
+- Test changes with the debug operators before full collapse
+- Consider both hardcoded and user-created primitive workflows
+
