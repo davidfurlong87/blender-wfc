@@ -6,58 +6,72 @@ from math import radians
 from enum import Enum
 import sys
 
-# Reload modules for development
+# ============================================================================
+# Module Reloading System
+# ============================================================================
+# This block ensures that when the addon is reloaded (disabled/enabled),
+# all modules are properly reloaded in dependency order.
+# See docs/MODULE_RELOADING_GUIDE.md for detailed explanation.
+
 if "bpy" in locals():
     import importlib
-    if "wfc_operators" in locals():
-        importlib.reload(wfc_operators)
-    if "wfc_collections" in locals():
-        importlib.reload(wfc_collections)
-    if "wfc_classes" in locals():
-        importlib.reload(wfc_classes)
-    if "wfc_materials" in locals():
-        importlib.reload(wfc_materials)
+
+    # Level 0: Base modules with no internal dependencies
     if "wfc_values" in locals():
         importlib.reload(wfc_values)
-    if "primitive_data" in locals():
-        importlib.reload(primitive_data)
+    if "wfc_enums" in locals():
+        importlib.reload(wfc_enums)
+
+    # Level 1: Modules that depend only on Level 0
+    if "wfc_materials" in locals():
+        importlib.reload(wfc_materials)
+    # Subpackage modules
+    from .collectiontools import collection_creation
+    importlib.reload(collection_creation)
+
+    # Level 2: Modules that depend on Level 0-1
+    if "wfc_classes" in locals():
+        importlib.reload(wfc_classes)
+    if "primitive_generation_tools" in locals():
+        importlib.reload(primitive_generation_tools)
+    if "helper_functions" in locals():
+        importlib.reload(helper_functions)
+
+    # Level 3: Modules that depend on Level 0-2
     if "primitive_data_actual" in locals():
         importlib.reload(primitive_data_actual)
     if "wfc_grid_builder" in locals():
         importlib.reload(wfc_grid_builder)
     if "wfc_plots" in locals():
         importlib.reload(wfc_plots)
-    # TODO: how to do this when not used here? can i have it reload inside of a different file?
-    if "wfc_enums" in locals():
-        importlib.reload(wfc_enums)
-    if "primitive_data_actual" in locals():
-        importlib.reload(primitive_data_actual)
+    if "wfc_plot_tools" in locals():
+        importlib.reload(wfc_plot_tools)
 
-    if "primitive_generation_tools" in locals():
-        importlib.reload(primitive_generation_tools)
+    # Level 4: Modules that depend on Level 0-3
+    if "primitive_data" in locals():
+        importlib.reload(primitive_data)
+    if "wfc_collections" in locals():
+        importlib.reload(wfc_collections)
+    if "wfc_operators" in locals():
+        importlib.reload(wfc_operators)
 
-    # Reload submodules - simpler approach
-    try:
-        from .collectiontools import collection_creation
-        importlib.reload(collection_creation)
-    except:
-        pass  # Module not loaded yet or import error
-
-from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
-from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
-from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
+# ============================================================================
+# Imports
+# ============================================================================
+# All imports happen AFTER the reload block to ensure we get the latest versions
 
 from .wfc_values import bl_category_name, CollectionNames, module_size, primitive_offset_x
-from .collectiontools.collection_creation import *
 from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES
-from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
-# TODO: how to do this when not used here?
+from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
+from .collectiontools.collection_creation import *
+from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
 from .primitive_generation_tools import *
 from .primitive_data_actual import *
+from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
+from .wfc_grid_builder import *
+from .wfc_plots import *
+from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 from .wfc_operators import *
-
-from.wfc_grid_builder import *
-from.wfc_plots import *
 
 
 

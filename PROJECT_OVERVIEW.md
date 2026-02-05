@@ -99,7 +99,7 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 - [ ] Move global state (`all_modules`, `all_grid_cells`) into proper data structures
 - [ ] Implement proper error handling and validation
 - [ ] Create consistent API for primitive import/export
-- [ ] Refactor module reload system in `__init__.py`
+- [x] Refactor module reload system in `__init__.py` ✅ (See `docs/MODULE_RELOADING_GUIDE.md`)
 
 ### Performance Optimizations
 - [ ] Profile collapse process for bottlenecks
@@ -125,12 +125,22 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 
 ### Testing Changes
 1. Modify addon code
-2. Reload addon in Blender (or restart Blender)
+2. Reload addon in Blender (Preferences → Add-ons → Disable/Enable "wfc")
 3. Use Debug Menu to test pipeline:
    - Regen Default Primitives
    - Re/Generate Modules
    - Build Grid
    - Debug Collapse (single step) or Full Collapse
+
+### Adding New Modules
+See `docs/QUICK_START_RELOADING.md` for step-by-step guide.
+
+**Quick version:**
+1. Determine what your module imports from the addon
+2. Find the reload level of your dependencies
+3. Add reload entry in `__init__.py` at (max dependency level + 1)
+4. Add import statement after the reload block
+5. Test by disabling/enabling the addon
 
 ### Adding New Primitives
 1. Create geometry in Blender
