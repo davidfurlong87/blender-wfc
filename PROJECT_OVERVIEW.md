@@ -121,6 +121,19 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 - [ ] TODO comments need addressing
 - [ ] Missing docstrings on many functions
 
+### Known Bugs
+#### Addon Loading Error
+When loading the addon the following error occurs.
+
+```
+Exception in module unregister(): '/Users/dfg03/Projects/wfc_repo/blender-wfc/addons/blender-wfc/__init__.py'
+Traceback (most recent call last):
+  File "/Applications/Blender.app/Contents/Resources/3.3/scripts/modules/addon_utils.py", line 421, in disable
+    mod.unregister()
+  File "/Users/dfg03/Projects/wfc_repo/blender-wfc/addons/blender-wfc/__init__.py", line 584, in unregister
+    bpy.utils.unregister_class(r_class)
+RuntimeError: unregister_class(...):, missing bl_rna attribute from 'RNAMeta' instance (may not be registered)
+```
 ## Development Workflow
 
 ### Testing Changes

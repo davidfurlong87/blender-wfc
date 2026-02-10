@@ -333,7 +333,7 @@ class WFCCell:
 
     def debug_create_building_plot_planes_from_module(self):
         inner_grid_offset_vector = self.inner_grid_vector(inner_grid_resolution = 4)
-        # self.inner_grid_cells = self.return_collapsed_module().debug_create_building_plot_planes(center_vector=self.world_pos_as_vector(), name_override = self.get_coords_set(), inner_grid_offset_vector = inner_grid_offset_vector)
+        self.inner_grid_cells = self.return_collapsed_module().debug_create_building_plot_planes(center_vector=self.world_pos_as_vector(), name_override = self.get_coords_set(), inner_grid_offset_vector = inner_grid_offset_vector)
         print(f"Plane debug for {self.posX, self.posY}:")
         # print(f"\tFace cache:")
         module = self.return_collapsed_module()
