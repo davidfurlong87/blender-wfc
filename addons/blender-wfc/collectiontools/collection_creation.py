@@ -94,10 +94,22 @@ def move_objects_to_new_collection(collection_name):
     bpy.ops.object.move_to_collection(collection_index=0, is_new=True, new_collection_name=collection_name)
 
 def duplicate_and_move_and_return(target_obj, target_location):
-    duplicate = target_obj.copy()
+    """
+    Create a shallow copy of the target object at the specified location.
 
-    # TODO: Hard copy of the mesh data. maybe needed, maybe not
-    duplicate.data = target_obj.data.copy()
+    Uses shared mesh data (instancing) for performance - all instances of the
+    same module share one mesh data block instead of creating duplicates.
+
+    Args:
+        target_obj: The Blender object to duplicate
+        target_location: The (x, y, z) location for the duplicate
+
+    Returns:
+        The duplicated object with shared mesh data
+    """
+    duplicate = target_obj.copy()
+    # Shallow copy - shares mesh data with source (fast, memory efficient)
+    # Each unique module type has one mesh data block shared by all instances
     duplicate.location = target_location
     return duplicate
 
