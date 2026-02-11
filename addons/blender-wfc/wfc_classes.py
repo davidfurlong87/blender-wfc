@@ -329,9 +329,12 @@ class WFCCell:
             return False
     
     def inner_grid_vector(self, inner_grid_resolution = 4): # i.e 4x4
+        # TODO: is it more performant to do one calculation of (inner_grid_resolution * vector)?
         return Vector((self.posX * inner_grid_resolution, self.posY * inner_grid_resolution))
 
     def debug_create_building_plot_planes_from_module(self):
+        """Debug: Create 2x2 planes for all building plot faces in current modules"""
+
         inner_grid_offset_vector = self.inner_grid_vector(inner_grid_resolution = 4)
         self.inner_grid_cells = self.return_collapsed_module().debug_create_building_plot_planes(center_vector=self.world_pos_as_vector(), name_override = self.get_coords_set(), inner_grid_offset_vector = inner_grid_offset_vector)
         print(f"Plane debug for {self.posX, self.posY}:")

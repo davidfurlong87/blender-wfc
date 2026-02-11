@@ -334,6 +334,7 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
                 print(module.name)
                 module._calculate_building_plot_faces(inner_cell_size = 2)
             debug_calculated_vgs = True
+            # TODO: This is requiring me to hit the button twice
             return {'FINISHED'}
 
 
@@ -347,6 +348,7 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
         iterations = 0
 
         inner_grid = {}
+        print("Calculated building plot faces. Creating dummy plot meshes")
         for key in keys:
             cell = all_grid_cells[key]
             planes = cell.debug_create_building_plot_planes_from_module()
