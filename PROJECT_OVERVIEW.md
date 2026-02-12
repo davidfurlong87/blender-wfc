@@ -96,7 +96,15 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 
 ### Architecture Improvements Needed
 - [ ] Separate algorithm logic from Blender UI code (See `docs/architecture/ALGORITHM_SEPARATION_GUIDE.md`)
-- [ ] Move global state (`all_modules`, `all_grid_cells`) into proper data structures
+  - [x] **Phase 1: Extract Pure Algorithm** ✅ (See `addons/blender-wfc/wfc_algorithm/README.md`)
+    - Created pure algorithm module with no Blender dependencies
+    - 33 unit tests pass without Blender
+    - Extracted: WFCAlgorithm, Grid, AlgorithmCell, AlgorithmModule
+  - [ ] Phase 2: Create Blender Adapter
+  - [ ] Phase 3: Migrate Operators
+  - [ ] Phase 4: Clean Up Old Code
+- [x] Move global state (`all_modules`, `all_grid_cells`) into proper data structures ✅
+  - Encapsulated in `Grid` class in pure algorithm module
 - [ ] Implement proper error handling and validation
 - [ ] Create consistent API for primitive import/export
 - [x] Refactor module reload system in `__init__.py` ✅ (See `docs/dependencies/MODULE_RELOADING_GUIDE.md`)
