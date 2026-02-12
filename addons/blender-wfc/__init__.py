@@ -350,6 +350,7 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
         inner_grid = {}
         print("Calculated building plot faces. Creating dummy plot meshes")
         for key in keys:
+            # TODO: Dictionary lookup everytime. SHould be looping over
             cell = all_grid_cells[key]
             planes = cell.debug_create_building_plot_planes_from_module()
             # module = cell.return_collapsed_module()
