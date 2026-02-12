@@ -95,11 +95,11 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 ## Known Issues & TODOs
 
 ### Architecture Improvements Needed
-- [ ] Separate algorithm logic from Blender UI code
+- [ ] Separate algorithm logic from Blender UI code (See `docs/architecture/ALGORITHM_SEPARATION_GUIDE.md`)
 - [ ] Move global state (`all_modules`, `all_grid_cells`) into proper data structures
 - [ ] Implement proper error handling and validation
 - [ ] Create consistent API for primitive import/export
-- [x] Refactor module reload system in `__init__.py` ✅ (See `docs/MODULE_RELOADING_GUIDE.md`)
+- [x] Refactor module reload system in `__init__.py` ✅ (See `docs/dependencies/MODULE_RELOADING_GUIDE.md`)
 
 ### Performance Optimizations
 - [ ] Profile collapse process for bottlenecks
