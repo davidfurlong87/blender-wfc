@@ -9,6 +9,7 @@ class GridParameters:
         self.y_size = y_size
         self.debug_mesh_size = debug_mesh_size
 
+# TODO: Is this a mix of bpy and pure python? Does it need separating?
 def build_wfc_grid(all_wfc_modules, all_grid_cells, uncollapsed_grid_cells):
     grid_collection = get_collection_by_name(CollectionNames.Grid.value)
     x_size = 10

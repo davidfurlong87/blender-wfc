@@ -72,6 +72,8 @@ from .wfc_grid_builder import *
 from .wfc_plots import *
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 from .wfc_operators import *
+from .wfc_blender_adapter import get_wfc_adapter, reset_wfc_adapter
+from .wfc_algorithm.core import WFCAlgorithm
 
 
 
@@ -253,6 +255,32 @@ class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
 
     def execute(self, context):
         clear_all_modules()
+        # NEW: Reset adapter when clearing modules
+        reset_wfc_adapter()
+        return {'FINISHED'}
+
+# TODO: For future, add boolean flag to block all creation of debug meshes
+# TODO: Add operator for deleting all debug meshes
+class OBJECT_OT_ShowDebugPlanes(bpy.types.Operator):
+    """Show debug planes (entropy visualization)"""
+    bl_idname = "object.show_debug_planes"
+    bl_label = "Show Debug Planes"
+
+    def execute(self, context):
+        adapter = get_wfc_adapter()
+        adapter.show_debug_planes()
+        self.report({'INFO'}, "Debug planes visible")
+        return {'FINISHED'}
+
+class OBJECT_OT_HideDebugPlanes(bpy.types.Operator):
+    """Hide debug planes (show only collapsed modules)"""
+    bl_idname = "object.hide_debug_planes"
+    bl_label = "Hide Debug Planes"
+
+    def execute(self, context):
+        adapter = get_wfc_adapter()
+        adapter.hide_debug_planes()
+        self.report({'INFO'}, "Debug planes hidden")
         return {'FINISHED'}
 
 class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
@@ -267,6 +295,12 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
         # layout.prop(context.scene, "clear_collections")
         layout.operator("object.build_wfc_grid")
         layout.operator("object.clear_wfc_grid")
+
+        # Debug visualization controls
+        layout.separator()
+        layout.label(text="Debug Visualization:")
+        layout.operator("object.show_debug_planes")
+        layout.operator("object.hide_debug_planes")
         layout.operator("object.debug_collapse")
         layout.operator("object.full_collapse")
         
@@ -279,7 +313,7 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
             layout.prop(obj, "remaining_modules")
 
 class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
-    """Build a Grid of Uncollapsed Cells"""
+    """Build a Grid of Uncollapsed Cells (shows initial entropy)"""
     bl_idname = "object.build_wfc_grid"
     bl_label = "Build Grid"
 
@@ -287,9 +321,26 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
     #     check col exists
 
     def execute(self, context):
+        # NEW: Use adapter to create grid visualization
         clear_all_cells()
-        build_wfc_grid(all_modules,all_grid_cells,uncollapsed_grid_cells)
+        reset_wfc_adapter()
 
+        if len(all_modules) == 0:
+            self.report({'ERROR'}, "No modules found. Generate modules first.")
+            return {'CANCELLED'}
+
+        adapter = get_wfc_adapter()
+
+        # Setup algorithm modules
+        algorithm_modules = adapter.setup_from_blender_modules(all_modules)
+        adapter.build_algorithm_module_pairs(algorithm_modules)
+
+        # Create grid and visualization (but don't collapse)
+        grid = adapter.create_grid_from_blender(algorithm_modules, grid_width=10, grid_height=10)
+        adapter.create_blender_visualization_grid(grid_width=10, grid_height=10, all_modules_count=len(all_modules))
+        adapter.algorithm = WFCAlgorithm(grid)
+
+        self.report({'INFO'}, "Grid created with debug visualization")
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
@@ -299,6 +350,8 @@ class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
 
     def execute(self, context):
         clear_all_cells()
+        # NEW: Reset adapter when clearing grid
+        reset_wfc_adapter()
         return {'FINISHED'}
 class OBJECT_OT_FullCollapse(bpy.types.Operator):
     """Takes all Uncollapsed Cells from the Grid and collapses each into a single Module"""
@@ -306,7 +359,23 @@ class OBJECT_OT_FullCollapse(bpy.types.Operator):
     bl_label = "Full Collapse"
 
     def execute(self, context):
-        collapse_process()
+        # NEW: Use adapter for clean separation
+        # TODO: Consider adding progress indicator for large grids
+        adapter = get_wfc_adapter()
+
+        # Check if we have modules
+        if len(all_modules) == 0:
+            self.report({'ERROR'}, "No modules found. Generate modules first.")
+            return {'CANCELLED'}
+
+        # Run full collapse with visualization
+        collapse_history = adapter.setup_and_run_full_collapse(
+            blender_modules=all_modules,
+            grid_width=10,  # TODO: Make this configurable via UI property
+            grid_height=10  # TODO: Make this configurable via UI property
+        )
+
+        self.report({'INFO'}, f"Collapsed {len(collapse_history)} cells")
 
         # TODO: Add building plot processing after collapse is complete
         # process_building_plots_after_collapse()
@@ -367,19 +436,32 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
         return {'FINISHED'}
 
 class OBJECT_OT_DebugCollapse(bpy.types.Operator):
-    """Tooltip"""
+    """Collapse a single cell (useful for debugging step-by-step)"""
     bl_idname = "object.debug_collapse"
-    bl_label = "Debug Collapse"  
+    bl_label = "Debug Collapse"
 
     def execute(self, context):
-        uncollapsed_cells = uncollapsed_grid_cells.values()
-        cell = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
-        collapse_cell(cell)
-        propagate(cell)
-        del uncollapsed_grid_cells[cell.get_coords_set()]
+        # NEW: Use adapter for clean separation
+        adapter = get_wfc_adapter()
 
-        cell_obj = cell.mesh_obj
-        cell_obj.remaining_modules = cell.number_of_modules_remaining()
+        # Check if we have modules
+        if len(all_modules) == 0:
+            self.report({'ERROR'}, "No modules found. Generate modules first.")
+            return {'CANCELLED'}
+
+        # Collapse one cell
+        result = adapter.debug_collapse_single_cell(
+            blender_modules=all_modules,
+            grid_width=10,  # TODO: Make this configurable via UI property
+            grid_height=10  # TODO: Make this configurable via UI property
+        )
+
+        if result is None:
+            self.report({'INFO'}, "Grid is complete - all cells collapsed")
+            return {'FINISHED'}
+
+        cell, selected_module = result
+        self.report({'INFO'}, f"Collapsed cell ({cell.x}, {cell.y}) to {selected_module.id}")
 
         return {'FINISHED'}
 
@@ -524,11 +606,13 @@ OPERATORS = [
                 OBJECT_OT_ClearWfcPrimitives,
                 OBJECT_OT_BuildWfcModules,
                 OBJECT_OT_ClearWfcModules,
-                OBJECT_OT_BuildWFCGrid,     
+                OBJECT_OT_BuildWFCGrid,
                 OBJECT_OT_ClearWFCGrid,
                 OBJECT_OT_DebugCollapse,
                 OBJECT_OT_FullCollapse,
-                OBJECT_OT_DebugBuildingPlots
+                OBJECT_OT_DebugBuildingPlots,
+                OBJECT_OT_ShowDebugPlanes,
+                OBJECT_OT_HideDebugPlanes
             ] + COLLECTION_OPERATORS + PRIMITIVE_OPERATORS
 
 PANELS = [
