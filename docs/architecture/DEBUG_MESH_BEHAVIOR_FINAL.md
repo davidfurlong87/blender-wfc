@@ -207,13 +207,15 @@ self.cell_objects[coords] = collapsed_obj  # Just the collapsed module
 - [x] Step 4b: Debug plane is **removed** (not hidden)
 - [x] Step 4c: Remaining debug planes update entropy
 - [x] Step 5a: Full Collapse works from current state
-- [x] Step 5b: All debug planes are **removed** after full collapse
+- [ ] Step 5b: All debug planes are **removed** after full collapse ⚠️ **TODO** (currently commented out due to bug)
 
-**All expected behaviors implemented!** ✅
+**Current Status:** Steps 3, 4a, 4b, 4c, and 5a are working correctly. Step 5b has a bug and is commented out for now.
 
 ---
 
-## 🐛 Bug Fix: UnboundLocalError
+## 🐛 Bug Fixes
+
+### **Bug 1: UnboundLocalError** ✅ FIXED
 
 **Issue:** Line 393 referenced `grid` variable which was only defined inside the `if self.algorithm is None:` block.
 
@@ -233,6 +235,28 @@ uncollapsed_cells = self.algorithm.grid.get_uncollapsed_cells()
 ```
 
 **Reason:** `self.algorithm.grid` is always available regardless of whether the algorithm was just initialized or already existed from a previous "Build Grid" call.
+
+---
+
+### **Bug 2: remove_all_debug_planes() Removing Collapsed Cells** ⚠️ TODO
+
+**Issue:** The `remove_all_debug_planes()` method (line 416) was removing all debug meshes but was also removing the collapsed cells which should be kept.
+
+**Current Status:** Line 416 has been commented out to preserve collapsed cells.
+
+**Code (lines 414-416):**
+```python
+# Step 5b: Remove all remaining debug meshes after full collapse
+# TODO: This is removing all debug meshes but is also removing the collapsed cells which I want to keep.
+# self.remove_all_debug_planes()
+```
+
+**Impact:**
+- ✅ Collapsed cells are now preserved correctly
+- ⚠️ Debug planes are NOT removed after full collapse (they remain in the scene)
+- 📝 TODO: Fix `remove_all_debug_planes()` to only remove debug planes, not collapsed cells
+
+**Future Fix Needed:** Update `remove_all_debug_planes()` logic to distinguish between debug planes and collapsed cells, removing only the former.
 
 ## Bugs:
 Error: Python: Traceback (most recent call last):

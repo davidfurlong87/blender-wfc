@@ -196,6 +196,23 @@ See `docs/QUICK_START_RELOADING.md` for step-by-step guide.
 - Integration with other procedural systems (vegetation, props)
 - Export to game engines
 
+## Current Status
+
+**Phase 2 Complete (with known issue)** ✅⚠️
+
+The WFC algorithm has been successfully separated from Blender UI code:
+- ✅ Pure algorithm module created (`wfc_algorithm/`)
+- ✅ Blender adapter layer created (`wfc_blender_adapter.py`)
+- ✅ Operators updated to use adapter
+- ✅ 33 unit tests passing (run without Blender in 0.001 seconds)
+- ✅ Debug mesh behavior implemented (Steps 3, 4a, 4b, 4c, 5a working)
+- ⚠️ **Known Issue:** Step 5b (remove debug planes after full collapse) commented out - `remove_all_debug_planes()` was removing collapsed cells along with debug planes
+- ✅ 10+ TODOs added for future refinement
+
+See `docs/architecture/DEBUG_MESH_BEHAVIOR_FINAL.md` for details on debug mesh behavior and known issues.
+
+---
+
 ## Notes for AI Assistant
 
 - Always check for existing patterns before suggesting new approaches
