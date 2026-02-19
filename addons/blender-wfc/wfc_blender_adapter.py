@@ -230,17 +230,13 @@ class BlenderWFCAdapter:
         grid_collection = get_collection_by_name(CollectionNames.Grid.value)
         link_object_to_single_collection(collapsed_cell_obj, grid_collection)
 
-        # Hide debug plane but keep it for debugging purposes
+        # Remove debug plane (Step 4b: collapsed debug cell object is removed)
         coords = cell.get_coords_tuple()
         if coords in self.cell_objects:
             debug_obj = self.cell_objects[coords]
-            debug_obj.hide_set(True)  # Hide in viewport
-            debug_obj.hide_render = True  # Hide in renders
-            # Store both debug plane and collapsed object
-            self.cell_objects[coords] = {
-                'debug': debug_obj,
-                'collapsed': collapsed_cell_obj
-            }
+            bpy.data.objects.remove(debug_obj, do_unlink=True)
+            # Store only the collapsed object
+            self.cell_objects[coords] = collapsed_cell_obj
 
         return collapsed_cell_obj
 
@@ -251,6 +247,8 @@ class BlenderWFCAdapter:
         This updates the remaining_modules property on the debug plane.
         Extracted from WFCCell.remove_invalid_modules()
 
+        Step 4c: The remaining debug mesh objects colour is updated to reflect their current entropy.
+
         Args:
             cell: AlgorithmCell to update visualization for
         """
@@ -258,15 +256,11 @@ class BlenderWFCAdapter:
         if coords in self.cell_objects:
             cell_obj_data = self.cell_objects[coords]
 
-            # Handle both dict (collapsed) and direct object (uncollapsed) formats
-            if isinstance(cell_obj_data, dict):
-                # Cell is collapsed, update debug plane if it exists
-                if 'debug' in cell_obj_data and not cell.is_collapsed:
-                    cell_obj_data['debug'].remaining_modules = cell.number_of_modules_remaining()
-            else:
-                # Cell is not collapsed, update debug plane directly
-                if not cell.is_collapsed:
-                    cell_obj_data.remaining_modules = cell.number_of_modules_remaining()
+            # Only update if it's a debug plane (not a collapsed module)
+            # After collapse, cell_objects[coords] is just the collapsed object, not a dict
+            if not isinstance(cell_obj_data, dict) and not cell.is_collapsed:
+                # This is an uncollapsed debug plane - update its entropy display
+                cell_obj_data.remaining_modules = cell.number_of_modules_remaining()
 
     def collapse_cell_with_visualization(self, cell):
         """
@@ -312,25 +306,58 @@ class BlenderWFCAdapter:
     def show_debug_planes(self):
         """
         Show all debug planes (useful for debugging entropy visualization)
+
+        Note: After cells are collapsed, their debug planes are removed, so this
+        only shows debug planes for uncollapsed cells.
         """
         for coords, cell_obj_data in self.cell_objects.items():
-            if isinstance(cell_obj_data, dict) and 'debug' in cell_obj_data:
-                cell_obj_data['debug'].hide_set(False)
-            elif not isinstance(cell_obj_data, dict):
+            # Only uncollapsed cells have debug planes (collapsed cells just have the module)
+            if not isinstance(cell_obj_data, dict):
                 # Uncollapsed cell - debug plane is the main object
                 cell_obj_data.hide_set(False)
 
     def hide_debug_planes(self):
         """
         Hide all debug planes (default - shows only collapsed modules)
+
+        Note: After cells are collapsed, their debug planes are removed, so this
+        only affects uncollapsed cells.
         """
         for coords, cell_obj_data in self.cell_objects.items():
-            if isinstance(cell_obj_data, dict) and 'debug' in cell_obj_data:
-                cell_obj_data['debug'].hide_set(True)
+            # Only uncollapsed cells have debug planes
+            if not isinstance(cell_obj_data, dict):
+                cell_obj_data.hide_set(True)
+
+    def remove_all_debug_planes(self):
+        """
+        Remove all remaining debug planes
+
+        Step 5b: Because the grid is now collapsed, its debug meshes are no longer needed and are removed.
+
+        This is called after full collapse to clean up any remaining debug visualization.
+        """
+        coords_to_remove = []
+        for coords, cell_obj_data in self.cell_objects.items():
+            # If it's still a debug plane (not collapsed), remove it
+            if not isinstance(cell_obj_data, dict):
+                # This is an uncollapsed debug plane
+                try:
+                    bpy.data.objects.remove(cell_obj_data, do_unlink=True)
+                    coords_to_remove.append(coords)
+                except:
+                    # Object might already be deleted
+                    coords_to_remove.append(coords)
+
+        # Clean up the tracking dict
+        for coords in coords_to_remove:
+            del self.cell_objects[coords]
 
     def setup_and_run_full_collapse(self, blender_modules, grid_width=10, grid_height=10):
         """
         Complete workflow: setup algorithm and run full collapse with visualization
+
+        Step 5a: If the user presses "Full Collapse" then the current grid is fully collapsed from its present state.
+        Step 5b: Because the grid is now collapsed, its debug meshes are no longer needed and are removed.
 
         This is the high-level method that replaces the current workflow in operators.
 
@@ -342,8 +369,9 @@ class BlenderWFCAdapter:
         Returns:
             List of (cell, selected_module) tuples in collapse order
         """
-        # Only setup if not already initialized
+        # Only setup if not already initialized (user should have called "Build Grid" first)
         if self.algorithm is None:
+            # User didn't build grid first - create it for them
             # Step 1: Convert Blender modules to algorithm modules
             algorithm_modules = self.setup_from_blender_modules(blender_modules)
 
@@ -353,21 +381,7 @@ class BlenderWFCAdapter:
             # Step 3: Create pure algorithm grid
             grid = self.create_grid_from_blender(algorithm_modules, grid_width, grid_height)
 
-        # TODO: Start - Correct debug mesh behaviour
-        # TODO: this creates an additional debug grid, on top of the one created in class OBJECT_OT_BuildWFCGrid
-        # TODO: The behaviour should be:
-        # 1: User creates primitives
-        # 2: User creates modules
-        #  3: User hits "Build Grid"
-        #  THis creates a debug visualization grid, showing debug meshes with their current entropy.
-        # 4a: If user hits "Debug Collapse" then a debug mesh object is collapsed, and its effect is propagated.
-        # 4b: The collapsed debug cell object is removed, and a module is put in its place.
-        # 4c: The remaining debug mesh objects colour is updated to reflect their current entropy.
-        # 5a: If the user presses "Full Collapse" then the current grid is fully collapsed from its present state.
-        # 5b: Because the grid is now collapsed, its debug meshes are no longer needed and are removed. 
-        # TODO: End - Correct debug mesh behaviour
-
-            # Step 4: Create Blender visualization grid
+            # Step 4: Create Blender visualization grid (debug meshes)
             self.create_blender_visualization_grid(grid_width, grid_height, len(algorithm_modules))
 
             # Step 5: Initialize algorithm with grid
@@ -375,7 +389,8 @@ class BlenderWFCAdapter:
 
         # Step 6: Run collapse with visualization
         collapse_history = []
-        uncollapsed_cells = grid.get_uncollapsed_cells()
+        # Get uncollapsed cells from the algorithm's grid (works whether grid was just created or already existed)
+        uncollapsed_cells = self.algorithm.grid.get_uncollapsed_cells()
 
         while len(uncollapsed_cells) > 0:
             # Import here to avoid circular dependency
@@ -395,6 +410,10 @@ class BlenderWFCAdapter:
 
             # Propagate with visualization
             self.propagate_with_visualization(cell_to_collapse)
+
+        # Step 5b: Remove all remaining debug meshes after full collapse
+        # TODO: This is removing all debug meshes but is also removing the collapsed modules.
+        # self.remove_all_debug_planes()
 
         return collapse_history
 
