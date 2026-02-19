@@ -111,7 +111,7 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
 
 
 class OBJECT_OT_WFCClearAll(bpy.types.Operator):
-    """Tooltip"""
+    """Reset everything and rebuild primitives, modules, and grid"""
     bl_idname = "object.wfc_clear_all"
     bl_label = "Reset Everything"
     # bl_space_type = 'VIEW_3D'
@@ -119,12 +119,29 @@ class OBJECT_OT_WFCClearAll(bpy.types.Operator):
     # bl_category = bl_category_name
 
     def execute(self, context):
+        # Clear everything
         clear_all_primitives()
         clear_all_modules()
         clear_all_cells()
+
+        # Reset adapter
+        reset_wfc_adapter()
+
+        # Rebuild primitives and modules
         build_all_primitives()
         generate_modules()
-        build_wfc_grid(all_modules,all_grid_cells, uncollapsed_grid_cells)
+
+        # NEW: Use adapter to build grid instead of old build_wfc_grid()
+        if len(all_modules) > 0:
+            adapter = get_wfc_adapter()
+            algorithm_modules = adapter.setup_from_blender_modules(all_modules)
+            adapter.build_algorithm_module_pairs(algorithm_modules)
+            grid = adapter.create_grid_from_blender(algorithm_modules, grid_width=10, grid_height=10)
+            adapter.create_blender_visualization_grid(grid_width=10, grid_height=10, all_modules_count=len(all_modules))
+            adapter.algorithm = WFCAlgorithm(grid)
+            self.report({'INFO'}, "Reset complete - grid created with debug visualization")
+        else:
+            self.report({'WARNING'}, "Reset complete - no modules to create grid")
 
         return {'FINISHED'}
 

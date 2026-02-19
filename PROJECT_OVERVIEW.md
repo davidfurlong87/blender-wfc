@@ -198,18 +198,20 @@ See `docs/QUICK_START_RELOADING.md` for step-by-step guide.
 
 ## Current Status
 
-**Phase 2 Complete (with known issue)** ✅⚠️
+**Phase 3 Complete (with known issue)** ✅⚠️
 
 The WFC algorithm has been successfully separated from Blender UI code:
-- ✅ Pure algorithm module created (`wfc_algorithm/`)
-- ✅ Blender adapter layer created (`wfc_blender_adapter.py`)
-- ✅ Operators updated to use adapter
+- ✅ **Phase 1:** Pure algorithm module created (`wfc_algorithm/`)
+- ✅ **Phase 2:** Blender adapter layer created (`wfc_blender_adapter.py`)
+- ✅ **Phase 3:** All operators migrated to use adapter (8 operators)
 - ✅ 33 unit tests passing (run without Blender in 0.001 seconds)
 - ✅ Debug mesh behavior implemented (Steps 3, 4a, 4b, 4c, 5a working)
 - ⚠️ **Known Issue:** Step 5b (remove debug planes after full collapse) commented out - `remove_all_debug_planes()` was removing collapsed cells along with debug planes
 - ✅ 10+ TODOs added for future refinement
 
-See `docs/architecture/DEBUG_MESH_BEHAVIOR_FINAL.md` for details on debug mesh behavior and known issues.
+**Next:** Phase 4 - Clean up old code (`build_wfc_grid()`, `collapse_process()`, `propagate()`, etc.)
+
+See `docs/architecture/` for detailed documentation on each phase.
 
 ---
 

@@ -412,7 +412,7 @@ class BlenderWFCAdapter:
             self.propagate_with_visualization(cell_to_collapse)
 
         # Step 5b: Remove all remaining debug meshes after full collapse
-        # TODO: This is removing all debug meshes but is also removing the collapsed modules.
+        # TODO: This is removing all debug meshes but is also removing the collapsed cells which I want to keep.
         # self.remove_all_debug_planes()
 
         return collapse_history

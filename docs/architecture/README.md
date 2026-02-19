@@ -147,17 +147,24 @@ The goal is to separate the pure WFC algorithm logic from Blender-specific code,
 
 ---
 
-### Phase 3: Migrate Operators ⚠️ Medium Risk
+### Phase 3: Migrate Operators ✅ COMPLETE
 **Goal:** Update operators to use adapter instead of mixed code
 
 **Tasks:**
-- [ ] Update `OBJECT_OT_FullCollapse`
-- [ ] Update `OBJECT_OT_DebugCollapse`
-- [ ] Update `OBJECT_OT_BuildWFCGrid`
-- [ ] Test each operator after migration
-- [ ] Verify functionality unchanged
+- [x] Update `OBJECT_OT_FullCollapse` (Phase 2)
+- [x] Update `OBJECT_OT_DebugCollapse` (Phase 2)
+- [x] Update `OBJECT_OT_BuildWFCGrid` (Phase 2)
+- [x] Update `OBJECT_OT_ClearWFCGrid` (Phase 2)
+- [x] Update `OBJECT_OT_ClearWfcModules` (Phase 2)
+- [x] Update `OBJECT_OT_WFCClearAll` (Phase 3)
+- [x] Add `OBJECT_OT_ShowDebugPlanes` (Phase 2)
+- [x] Add `OBJECT_OT_HideDebugPlanes` (Phase 2)
+- [x] Test each operator after migration
+- [x] Verify functionality unchanged
 
-**Estimated effort:** 2-3 hours
+**Result:** All 8 WFC operators now use adapter layer. See `PHASE_3_COMPLETE.md`
+
+**Actual effort:** 1 hour (most work done in Phase 2)
 
 ---
 

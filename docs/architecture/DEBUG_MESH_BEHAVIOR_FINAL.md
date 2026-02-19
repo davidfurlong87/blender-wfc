@@ -257,11 +257,3 @@ uncollapsed_cells = self.algorithm.grid.get_uncollapsed_cells()
 - 📝 TODO: Fix `remove_all_debug_planes()` to only remove debug planes, not collapsed cells
 
 **Future Fix Needed:** Update `remove_all_debug_planes()` logic to distinguish between debug planes and collapsed cells, removing only the former.
-
-## Bugs:
-Error: Python: Traceback (most recent call last):
-  File "/Users/dfg03/Projects/wfc_repo/blender-wfc/addons/blender-wfc/__init__.py", line 372, in execute
-    collapse_history = adapter.setup_and_run_full_collapse(
-  File "/Users/dfg03/Projects/wfc_repo/blender-wfc/addons/blender-wfc/wfc_blender_adapter.py", line 392, in setup_and_run_full_collapse
-    uncollapsed_cells = grid.get_uncollapsed_cells()
-UnboundLocalError: local variable 'grid' referenced before assignment
