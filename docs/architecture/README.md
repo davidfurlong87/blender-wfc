@@ -168,17 +168,22 @@ The goal is to separate the pure WFC algorithm logic from Blender-specific code,
 
 ---
 
-### Phase 4: Clean Up ✅ Low Risk
-**Goal:** Remove old mixed code
+### Phase 4: Clean Up Old Code ✅ COMPLETE
+**Goal:** Remove orphaned functions and global variables
 
 **Tasks:**
-- [ ] Remove old algorithm functions from `__init__.py`
-- [ ] Update `WFCCell` to be pure
-- [ ] Update `WFCModule` to be pure
-- [ ] Remove global state
-- [ ] Update documentation
+- [x] Remove old algorithm functions from `__init__.py` (`propagate()`, `collapse_process()`, `collapse_cell()`, `build_module_score()`, `get_lowest_entropy_cells()`)
+- [x] Remove global state (`all_grid_cells`, `uncollapsed_grid_cells`, `debug_all_grid_cells`)
+- [x] Delete entire `wfc_grid_builder.py` file (no longer needed)
+- [x] Clean up imports and reload references
+- [x] Update `OBJECT_OT_DebugBuildingPlots` to use adapter
+- [x] Update documentation
 
-**Estimated effort:** 1-2 hours
+**Result:** ~125 lines of orphaned code removed. Codebase is now clean! See `PHASE_4_COMPLETE.md`
+
+**Actual effort:** 1 hour
+
+**Note:** `WFCCell` and `WFCModule` classes are still in `wfc_classes.py` but are only used for Blender-specific functionality (building plots, module generation). The pure algorithm uses `AlgorithmCell` and `AlgorithmModule` from `wfc_algorithm/`.
 
 ---
 

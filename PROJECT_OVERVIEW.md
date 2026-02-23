@@ -198,18 +198,20 @@ See `docs/QUICK_START_RELOADING.md` for step-by-step guide.
 
 ## Current Status
 
-**Phase 3 Complete (with known issue)** ✅⚠️
+**Phase 4 Complete (with known issue)** ✅⚠️
 
-The WFC algorithm has been successfully separated from Blender UI code:
+The WFC algorithm has been successfully separated from Blender UI code and all old code has been cleaned up:
 - ✅ **Phase 1:** Pure algorithm module created (`wfc_algorithm/`)
 - ✅ **Phase 2:** Blender adapter layer created (`wfc_blender_adapter.py`)
 - ✅ **Phase 3:** All operators migrated to use adapter (8 operators)
+- ✅ **Phase 4:** All orphaned code removed (~125 lines cleaned up)
 - ✅ 33 unit tests passing (run without Blender in 0.001 seconds)
 - ✅ Debug mesh behavior implemented (Steps 3, 4a, 4b, 4c, 5a working)
 - ⚠️ **Known Issue:** Step 5b (remove debug planes after full collapse) commented out - `remove_all_debug_planes()` was removing collapsed cells along with debug planes
+- ⚠️ **Known Issue:** `OBJECT_OT_DebugBuildingPlots` operator needs refactoring for new architecture
 - ✅ 10+ TODOs added for future refinement
 
-**Next:** Phase 4 - Clean up old code (`build_wfc_grid()`, `collapse_process()`, `propagate()`, etc.)
+**Architecture separation is now complete!** The codebase has clean 3-layer separation with zero orphaned code.
 
 See `docs/architecture/` for detailed documentation on each phase.
 

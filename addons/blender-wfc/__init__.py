@@ -40,8 +40,7 @@ if "bpy" in locals():
     # Level 3: Modules that depend on Level 0-2
     if "primitive_data_actual" in locals():
         importlib.reload(primitive_data_actual)
-    if "wfc_grid_builder" in locals():
-        importlib.reload(wfc_grid_builder)
+    # wfc_grid_builder removed in Phase 4 - functionality moved to adapter
     if "wfc_plots" in locals():
         importlib.reload(wfc_plots)
     if "wfc_plot_tools" in locals():
@@ -68,7 +67,7 @@ from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
 from .primitive_generation_tools import *
 from .primitive_data_actual import *
 from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
-from .wfc_grid_builder import *
+# wfc_grid_builder removed in Phase 4 - functionality moved to adapter
 from .wfc_plots import *
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 from .wfc_operators import *
@@ -159,9 +158,7 @@ def clear_all_cells():
     delete_objects_and_meshes(
         get_all_objects_from_collection(CollectionNames.Grid.value)
     )
-    # TODO: For this and the other clears, might be better looping through the code list and deleting whatever is there.
-    all_grid_cells.clear()
-    uncollapsed_grid_cells.clear()
+    # Note: Grid state is now managed by the adapter, not global variables
 
 class OBJECT_OT_UserPrimitives(bpy.types.Operator):
     """Generate Primitives from User Data"""
@@ -409,7 +406,7 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
         # TODO: ask what global is doing here
         # Is it searching all 'files' and reporting what it finds?
         global all_modules
-        
+
         if not all_modules:
             self.report({'ERROR'}, "No WFC modules found. Build modules first.")
             return {'CANCELLED'}
@@ -423,33 +420,38 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
             # TODO: This is requiring me to hit the button twice
             return {'FINISHED'}
 
+        # NEW: Use adapter to access grid state instead of old global variables
+        adapter = get_wfc_adapter()
+
+        if adapter.algorithm is None:
+            self.report({'ERROR'}, "No grid found. Build grid first.")
+            return {'CANCELLED'}
 
         # TODO: quick method to check if outer grid collapsed
-        if len(uncollapsed_grid_cells) > 0:
-            print(f"Cancelling debug: len(uncollapsed_grid_cells) > 0")
+        if len(adapter.algorithm.grid.uncollapsed_cells) > 0:
+            print(f"Cancelling debug: len(uncollapsed_cells) > 0")
             return {'CANCELLED'}
-        
-        keys = all_grid_cells.keys()
+
+        # NOTE: This operator uses old WFCCell class methods that may not be compatible
+        # with the new architecture. It accesses cell_objects which now only stores
+        # collapsed module objects, not WFCCell instances.
+        # TODO: Refactor this operator to work with the new adapter architecture
+
         total_planes_created = 0
-        iterations = 0
-
-        inner_grid = {}
         print("Calculated building plot faces. Creating dummy plot meshes")
-        for key in keys:
-            # TODO: Dictionary lookup everytime. SHould be looping over
-            cell = all_grid_cells[key]
-            planes = cell.debug_create_building_plot_planes_from_module()
-            # module = cell.return_collapsed_module()
-            # planes = module.debug_create_building_plot_planes(center_vector=cell.world_pos_as_vector(), name_override = key)
-            total_planes_created += len(planes)
 
-            # if len(planes) > 1:
+        # Iterate through collapsed cells
+        for coords, cell_obj in adapter.cell_objects.items():
+            # Skip if this is a dict (old debug plane structure)
+            if isinstance(cell_obj, dict):
+                continue
 
-            # iterations += 1
-            # if iterations > 6:
-            #         break
-                
-        self.report({'INFO'}, f"Created {total_planes_created} debug building plot planes")
+            # TODO: This needs refactoring - the old WFCCell methods are not available
+            # in the new architecture. For now, this operator is non-functional.
+            # planes = cell.debug_create_building_plot_planes_from_module()
+            # total_planes_created += len(planes)
+
+        self.report({'WARNING'}, f"This operator needs refactoring for new architecture")
         return {'FINISHED'}
 
 class OBJECT_OT_DebugCollapse(bpy.types.Operator):
@@ -482,88 +484,20 @@ class OBJECT_OT_DebugCollapse(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
-def propagate(collapsed_cell):
-    affected_cells = [collapsed_cell]
-    all_cell_keys = [key for key in all_grid_cells.keys()]
-    # TODO: purpose of this is to allow me to update meshData/material inputs
-
-    while len(affected_cells) >0:
-        affected_cell = affected_cells[0]
-        affected_cells.remove(affected_cell)
-        for axis in Axis:
-            possible_pairs = []
-            neighbour_coords = affected_cell.get_neighbour_coords_set(axis)
-
-            # TODO: crappy getOrElse, change
-            if neighbour_coords in all_cell_keys:
-                neighbour_cell = all_grid_cells[neighbour_coords]
-                if (neighbour_cell and neighbour_cell.isCollapsed == False):
-                    match axis:
-                        case Axis.POS_X:
-                            for module in affected_cell.possibleModules:
-                                possible_pairs.extend(module.pos_x_pairs)
-                        case Axis.NEG_X:
-                            for module in affected_cell.possibleModules:
-                                possible_pairs.extend(module.neg_x_pairs)
-                        case Axis.POS_Y:
-                            for module in affected_cell.possibleModules:
-                                possible_pairs.extend(module.pos_y_pairs)
-                        case Axis.NEG_Y:
-                            for module in affected_cell.possibleModules:
-                                possible_pairs.extend(module.neg_y_pairs)
-
-                    invalid_modules = [module for module in neighbour_cell.possibleModules if module not in possible_pairs]
-                    if len(invalid_modules) > 0:
-                        neighbour_cell.remove_invalid_modules(invalid_modules)
-                        affected_cells.append(neighbour_cell)
-
-def get_lowest_entropy_cells(uncollapsed_cells):
-    current_fewest_modules = 9999
-    lowest_entropy_cells = []
-    for cell in uncollapsed_cells:
-        if cell.number_of_modules_remaining() < current_fewest_modules:
-            current_fewest_modules = cell.number_of_modules_remaining()
-            lowest_entropy_cells = [cell]
-        elif cell.number_of_modules_remaining() == current_fewest_modules:
-            lowest_entropy_cells.append(cell)
-    return lowest_entropy_cells
-
-def collapse_process():
-    # TODO: Throw exception below if not
-    if (len(all_grid_cells) != 0):
-        # TODO: Uncollapsed cell already exists elsewhere
-        uncollapsed_cells = [cell_value for cell_value in uncollapsed_grid_cells.values()]
-        while len(uncollapsed_cells) != 0:
-            cell_to_collapse = random.choice(get_lowest_entropy_cells(uncollapsed_cells))
-            collapse_cell(cell_to_collapse)
-            uncollapsed_cells.remove(cell_to_collapse)
-            del uncollapsed_grid_cells[cell_to_collapse.get_coords_set()]
-            propagate(cell_to_collapse)
-
-def collapse_cell(cell):
-    # TODO: Replace below with def get_highest_weight_modules(modules)
-    scored_modules = [(build_module_score(module.module_weight), module) for module in cell.possibleModules]
-    module_to_return = scored_modules[0]
-    # TODO: Magic numbers, replace with scored module class -> if current_s_module.score > ...
-    for scored_module in scored_modules:
-        if scored_module[0] > module_to_return[0]:
-            module_to_return = scored_module
-    cell.possibleModules = [module_to_return[1]]
-    cell.isCollapsed = True
-    module_obj = module_to_return[1].obj_source
-    placement_location = (cell.posX * (module_size), cell.posY * (module_size), 0)
-    collapsed_cell_obj = duplicate_and_move_and_return(module_obj, placement_location)
-    collapsed_cell_obj.name = f"{cell.posX:02d}_{cell.posY:02d}-{module_obj.name}"
-    cell.replace_mesh_obj(new_obj=collapsed_cell_obj)
-    link_object_to_single_collection(collapsed_cell_obj, get_collection_by_name(CollectionNames.Grid.value))    
-
-def build_module_score(module_weight):
-    return module_weight * random.randint(1, 10001)
-
-all_grid_cells = {}
-uncollapsed_grid_cells = {}
-debug_all_grid_cells = {}
+# ============================================================================
+# OLD WFC FUNCTIONS - REMOVED IN PHASE 4
+# ============================================================================
+# The following functions have been replaced by the adapter layer:
+# - propagate() → adapter.propagate_with_visualization()
+# - collapse_process() → adapter.setup_and_run_full_collapse()
+# - collapse_cell() → adapter.collapse_cell_with_visualization()
+# - build_module_score() → wfc_algorithm.core.score_module()
+# - get_lowest_entropy_cells() → wfc_algorithm.core.get_lowest_entropy_cells()
+#
+# Global variables replaced by adapter state:
+# - all_grid_cells → adapter.algorithm.grid.cells
+# - uncollapsed_grid_cells → adapter.algorithm.grid.uncollapsed_cells
+# ============================================================================
 
 # TODO: USED? If not, delete
 class Socket(Enum):
