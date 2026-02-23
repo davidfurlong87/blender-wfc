@@ -105,8 +105,8 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
     - Updated 4 operators to use adapter
     - Added 10 TODOs for future refinement
     - Ready for testing in Blender
-  - [ ] Phase 3: Migrate Operators (if any remaining)
-  - [ ] Phase 4: Clean Up Old Code
+  - [x] Phase 3: Migrate Operators (if any remaining)
+  - [x] Phase 4: Clean Up Old Code
 - [x] Move global state (`all_modules`, `all_grid_cells`) into proper data structures ✅
   - Encapsulated in `Grid` class in pure algorithm module
 - [ ] Implement proper error handling and validation
