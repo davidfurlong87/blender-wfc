@@ -23,6 +23,7 @@ from .collectiontools.collection_creation import (
     get_collection_by_name
 )
 from .wfc_values import module_size, CollectionNames
+from mathutils import Vector
 
 
 class BlenderWFCAdapter:
@@ -453,6 +454,388 @@ class BlenderWFCAdapter:
         self.propagate_with_visualization(cell_to_collapse)
 
         return (cell_to_collapse, selected_module)
+
+    # ========================================================================
+    # Plot Extraction and Grouping (Generic for all plot types)
+    # ========================================================================
+
+    def extract_plots_from_grid(self, plot_type='building_plot', vertex_group_name=None):
+        """
+        Extract plot data from collapsed grid cells (generic for any plot type)
+
+        This method works for any plot type: building, road, pavement, park, etc.
+        It uses vertex groups to identify plot faces on modules.
+
+        Args:
+            plot_type: Type of plot to extract (e.g., 'building', 'road', 'pavement', 'park')
+            vertex_group_name: Name of vertex group to look for (default: '{plot_type}_plot')
+
+        Returns:
+            List of plot dictionaries with structure:
+            {
+                'plot_type': str,
+                'world_pos': Vector,
+                'center_relative': Vector,
+                'grid_coord': (int, int),  # Relative to inner grid (0-3, 0-3)
+                'outer_cell_coords': (int, int),  # Outer grid coordinates
+                'vertices_relative': List[Vector],
+                'face_index': int
+            }
+        """
+        if vertex_group_name is None:
+            vertex_group_name = f'{plot_type}_plot'
+
+        all_plots = []
+
+        # Iterate through collapsed cells
+        for coords, cell_obj in self.cell_objects.items():
+            # Skip debug planes (old structure used dicts)
+            if isinstance(cell_obj, dict):
+                continue
+
+            # Get algorithm cell
+            algorithm_cell = self.algorithm.grid.cells.get(coords)
+            if not algorithm_cell or not algorithm_cell.is_collapsed:
+                continue
+            print()
+            # Get the Blender module that was placed at this cell
+            algorithm_module_id = algorithm_cell.possible_modules[0]
+            blender_module = self.blender_module_map.get(algorithm_module_id)
+            print(f"algorithm_module_id: {algorithm_module_id}")
+            print(f"blender_module: {blender_module}")
+
+
+            if blender_module and hasattr(blender_module, 'obj_source'):
+                # Extract plot faces from this module using vertex groups
+                plot_faces = self._extract_plot_faces_from_module(
+                    blender_module,
+                    vertex_group_name
+                )
+
+                # Convert to world coordinates and add to list
+                for face_data in plot_faces:
+                    world_pos = Vector((
+                        coords[0] * module_size + face_data['center_relative'].x,
+                        coords[1] * module_size + face_data['center_relative'].y,
+                        0
+                    ))
+
+                    plot = {
+                        'plot_type': plot_type,
+                        'world_pos': world_pos,
+                        'center_relative': face_data['center_relative'],
+                        'grid_coord': face_data['grid_coord'],
+                        'outer_cell_coords': coords,
+                        'vertices_relative': face_data['vertices_relative'],
+                        'face_index': face_data['face_index']
+                    }
+                    all_plots.append(plot)
+
+        return all_plots
+
+    def _extract_plot_faces_from_module(self, blender_module, vertex_group_name):
+        """
+        Extract plot faces from a module using vertex groups
+
+        This is a generic version of WFCModule._calculate_building_plot_faces()
+        that works with any vertex group name.
+
+        Args:
+            blender_module: WFCModule instance
+            vertex_group_name: Name of vertex group to look for
+
+        Returns:
+            List of face data dictionaries with relative coordinates
+        """
+        if not blender_module.obj_source or not blender_module.obj_source.data:
+            return []
+
+        # Get the vertex group
+        vertex_group = blender_module.obj_source.vertex_groups.get(vertex_group_name)
+        if not vertex_group:
+            # Silently skip modules without this vertex group
+            return []
+
+        # Get vertices that belong to the vertex group
+        plot_vertices = set()
+        for vert_index, vertex in enumerate(blender_module.obj_source.data.vertices):
+            for group in vertex.groups:
+                if group.group == vertex_group.index:
+                    plot_vertices.add(vert_index)
+                    break
+
+        if not plot_vertices:
+            return []
+
+        # Find faces where ALL vertices are in the vertex group
+        plot_face_indices = []
+        for face_index, face in enumerate(blender_module.obj_source.data.polygons):
+            if all(vert_index in plot_vertices for vert_index in face.vertices):
+                plot_face_indices.append(face_index)
+
+        if not plot_face_indices:
+            return []
+
+        # Calculate module center in world coordinates for reference
+        obj_world_center = blender_module.obj_source.matrix_world @ Vector((0, 0, 0))
+
+        # Process each face and store relative data
+        plot_faces_data = []
+        for face_index in plot_face_indices:
+            face = blender_module.obj_source.data.polygons[face_index]
+
+            # Calculate face center in world coordinates
+            face_center_world = Vector((0, 0, 0))
+            for vert_index in face.vertices:
+                vert_world_pos = blender_module.obj_source.matrix_world @ blender_module.obj_source.data.vertices[vert_index].co
+                face_center_world += vert_world_pos
+            face_center_world /= len(face.vertices)
+
+            # Convert to relative coordinates (relative to module center)
+            face_center_relative = face_center_world - obj_world_center
+
+            # Get face vertices in relative coordinates
+            face_vertices_relative = []
+            for vert_index in face.vertices:
+                vert_world_pos = blender_module.obj_source.matrix_world @ blender_module.obj_source.data.vertices[vert_index].co
+                vert_relative_pos = vert_world_pos - obj_world_center
+                face_vertices_relative.append(vert_relative_pos)
+
+            # Calculate grid coordinates (4x4 grid, 0-indexed)
+            # Assuming faces are 2x2 units and module is 8x8 units centered at origin
+            # Grid ranges from -4 to +4 in both axes, so we map to 0-3 grid coordinates
+            grid_x = int((face_center_relative.x + 4) / 2)
+            grid_y = int((face_center_relative.y + 4) / 2)
+
+            # Clamp to valid range (0-3)
+            grid_x = max(0, min(3, grid_x))
+            grid_y = max(0, min(3, grid_y))
+
+            face_data = {
+                'face_index': face_index,
+                'center_relative': face_center_relative,
+                'vertices_relative': face_vertices_relative,
+                'vertex_indices': list(face.vertices),
+                'grid_coord': (grid_x, grid_y)
+            }
+            plot_faces_data.append(face_data)
+
+        return plot_faces_data
+
+    def group_plot_islands(self, plots, plot_type='building'):
+        """
+        Group adjacent plots into islands using flood fill
+
+        Generic method that works for any plot type (building, road, pavement, park, etc.)
+
+        Args:
+            plots: List of plot dictionaries from extract_plots_from_grid()
+            plot_type: Type of plot being grouped (for naming/identification)
+
+        Returns:
+            List of island dictionaries with structure:
+            {
+                'island_id': int,
+                'plot_type': str,
+                'plots': List[dict],  # List of plot dictionaries
+                'combined_bounds': (min_x, min_y, max_x, max_y),
+                'grid_size': (width, height)  # In outer grid cells
+            }
+        """
+        islands = []
+        current_island_id = 0
+        processed_plots = set()
+
+        for i, plot in enumerate(plots):
+            if i in processed_plots:
+                continue
+
+            # Start a new island with flood fill
+            current_island_plots = []
+            plots_to_process = [i]
+
+            while plots_to_process:
+                current_plot_index = plots_to_process.pop(0)
+                if current_plot_index in processed_plots:
+                    continue
+
+                processed_plots.add(current_plot_index)
+                current_island_plots.append(plots[current_plot_index])
+
+                # Find adjacent plots
+                adjacent_indices = self._find_adjacent_plot_indices(
+                    current_plot_index,
+                    plots,
+                    processed_plots
+                )
+                plots_to_process.extend(adjacent_indices)
+
+            if current_island_plots:
+                # Calculate combined bounds for this island
+                combined_bounds = self._calculate_island_bounds(current_island_plots)
+                grid_size = self._calculate_island_grid_size(combined_bounds)
+
+                island = {
+                    'island_id': current_island_id,
+                    'plot_type': plot_type,
+                    'plots': current_island_plots,
+                    'combined_bounds': combined_bounds,
+                    'grid_size': grid_size
+                }
+                islands.append(island)
+                current_island_id += 1
+
+        return islands
+
+    def _find_adjacent_plot_indices(self, target_index, all_plots, processed_plots):
+        """Find indices of plots adjacent to the target plot"""
+        adjacent_indices = []
+        target_plot = all_plots[target_index]
+        target_coords = target_plot['outer_cell_coords']
+        target_grid_coord = target_plot['grid_coord']
+
+        for i, plot in enumerate(all_plots):
+            if i == target_index or i in processed_plots:
+                continue
+
+            plot_coords = plot['outer_cell_coords']
+            plot_grid_coord = plot['grid_coord']
+
+            # Check if plots are adjacent (same outer cell or neighboring outer cells)
+            if self._plots_are_adjacent(
+                target_coords, target_grid_coord,
+                plot_coords, plot_grid_coord
+            ):
+                adjacent_indices.append(i)
+
+        return adjacent_indices
+
+    def _plots_are_adjacent(self, coords1, grid_coord1, coords2, grid_coord2):
+        """
+        Check if two plots are adjacent
+
+        Plots are adjacent if:
+        1. They're in the same outer cell and share an edge in the inner grid
+        2. They're in neighboring outer cells and share an edge across the boundary
+        """
+        # Same outer cell - check inner grid adjacency
+        if coords1 == coords2:
+            dx = abs(grid_coord1[0] - grid_coord2[0])
+            dy = abs(grid_coord1[1] - grid_coord2[1])
+            # Adjacent if exactly one coordinate differs by 1
+            return (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
+
+        # Different outer cells - check if cells are adjacent and plots are on touching edges
+        outer_dx = abs(coords1[0] - coords2[0])
+        outer_dy = abs(coords1[1] - coords2[1])
+
+        # Outer cells must be adjacent (not diagonal)
+        if not ((outer_dx == 1 and outer_dy == 0) or (outer_dx == 0 and outer_dy == 1)):
+            return False
+
+        # Check if plots are on the touching edges
+        if outer_dx == 1:  # Horizontally adjacent outer cells
+            # Plot 1 should be on right edge (grid_x == 3) if coords1[0] < coords2[0]
+            # Plot 2 should be on left edge (grid_x == 0) if coords1[0] < coords2[0]
+            if coords1[0] < coords2[0]:
+                return grid_coord1[0] == 3 and grid_coord2[0] == 0 and grid_coord1[1] == grid_coord2[1]
+            else:
+                return grid_coord1[0] == 0 and grid_coord2[0] == 3 and grid_coord1[1] == grid_coord2[1]
+
+        if outer_dy == 1:  # Vertically adjacent outer cells
+            # Plot 1 should be on top edge (grid_y == 3) if coords1[1] < coords2[1]
+            # Plot 2 should be on bottom edge (grid_y == 0) if coords1[1] < coords2[1]
+            if coords1[1] < coords2[1]:
+                return grid_coord1[1] == 3 and grid_coord2[1] == 0 and grid_coord1[0] == grid_coord2[0]
+            else:
+                return grid_coord1[1] == 0 and grid_coord2[1] == 3 and grid_coord1[0] == grid_coord2[0]
+
+        return False
+
+    def _calculate_island_bounds(self, island_plots):
+        """Calculate combined bounding box for an island"""
+        if not island_plots:
+            return (0, 0, 0, 0)
+
+        min_x = min(plot['world_pos'].x for plot in island_plots)
+        min_y = min(plot['world_pos'].y for plot in island_plots)
+        max_x = max(plot['world_pos'].x for plot in island_plots)
+        max_y = max(plot['world_pos'].y for plot in island_plots)
+
+        # Expand by plot size (assuming 2x2 plots)
+        plot_half_size = 1.0  # Half of 2x2 plot
+        return (min_x - plot_half_size, min_y - plot_half_size,
+                max_x + plot_half_size, max_y + plot_half_size)
+
+    def _calculate_island_grid_size(self, bounds):
+        """Calculate grid size in outer cells for an island"""
+        width = bounds[2] - bounds[0]
+        height = bounds[3] - bounds[1]
+
+        # Convert to outer cell count
+        grid_width = max(1, int(width / module_size))
+        grid_height = max(1, int(height / module_size))
+
+        return (grid_width, grid_height)
+
+    def create_inner_grid_for_island(self, island, resolution_multiplier=4, inner_modules=None):
+        """
+        Create a higher-resolution WFC grid for an island
+
+        This creates an inner grid that can be collapsed using the same WFC algorithm
+        to generate detailed content (e.g., buildings, parks, etc.) on the island.
+
+        Args:
+            island: Island dictionary from group_plot_islands()
+            resolution_multiplier: How many inner cells per outer cell (default: 4)
+                                   e.g., 4 = 4x4 inner grid per outer cell
+                                   Higher = more detail but slower
+            inner_modules: List of AlgorithmModule instances to use for inner grid
+                          If None, you'll need to provide modules separately
+
+        Returns:
+            Grid instance for the inner grid (from wfc_algorithm.grid)
+
+        Example:
+            # Create 4x4 inner grid (16 cells per outer cell)
+            inner_grid = adapter.create_inner_grid_for_island(island, resolution_multiplier=4)
+
+            # Create 8x8 inner grid (64 cells per outer cell) for more detail
+            inner_grid = adapter.create_inner_grid_for_island(island, resolution_multiplier=8)
+        """
+        # Calculate inner grid dimensions
+        grid_size = island['grid_size']  # Size in outer cells
+        inner_width = grid_size[0] * resolution_multiplier
+        inner_height = grid_size[1] * resolution_multiplier
+
+        # Create inner grid
+        inner_grid = Grid(width=inner_width, height=inner_height)
+
+        # If modules provided, create cells with those modules
+        if inner_modules:
+            for x in range(inner_width):
+                for y in range(inner_height):
+                    cell = AlgorithmCell(
+                        x=x,
+                        y=y,
+                        possible_modules=inner_modules[:]
+                    )
+                    inner_grid.add_cell(cell)
+        else:
+            # Create empty grid (modules will be added later)
+            for x in range(inner_width):
+                for y in range(inner_height):
+                    cell = AlgorithmCell(
+                        x=x,
+                        y=y,
+                        possible_modules=[]
+                    )
+                    inner_grid.add_cell(cell)
+
+        # TODO: Set edge constraints based on outer grid
+        # Inner grid edges should match the outer grid's constraints
+
+        return inner_grid
 
 
 # Global adapter instance (singleton pattern)

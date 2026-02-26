@@ -398,61 +398,79 @@ class OBJECT_OT_FullCollapse(bpy.types.Operator):
 debug_calculated_vgs = False
 # TODO: move to operators when we have a solution for all grid cells
 class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
-    """Debug: Create 2x2 planes for all building plot faces in current modules"""
+    """Visualize plot islands (generic for building, road, pavement, park plots)"""
     bl_idname = "object.debug_building_plots"
-    bl_label = "Debug Building Plots"
+    bl_label = "Debug Plot Islands"
 
     def execute(self, context):
-        # TODO: ask what global is doing here
-        # Is it searching all 'files' and reporting what it finds?
-        global all_modules
-
-        if not all_modules:
-            self.report({'ERROR'}, "No WFC modules found. Build modules first.")
-            return {'CANCELLED'}
-        global debug_calculated_vgs
-        if debug_calculated_vgs == False:
-            print("not yet calced vgs")
-            for module in all_modules:
-                print(module.name)
-                module._calculate_building_plot_faces(inner_cell_size = 2)
-            debug_calculated_vgs = True
-            # TODO: This is requiring me to hit the button twice
-            return {'FINISHED'}
-
-        # NEW: Use adapter to access grid state instead of old global variables
         adapter = get_wfc_adapter()
 
         if adapter.algorithm is None:
-            self.report({'ERROR'}, "No grid found. Build grid first.")
+            self.report({'ERROR'}, "No grid found. Run Full Collapse first.")
             return {'CANCELLED'}
 
-        # TODO: quick method to check if outer grid collapsed
+        # Check if grid is fully collapsed
         if len(adapter.algorithm.grid.uncollapsed_cells) > 0:
-            print(f"Cancelling debug: len(uncollapsed_cells) > 0")
+            self.report({'ERROR'}, "Grid not fully collapsed. Run Full Collapse first.")
             return {'CANCELLED'}
 
-        # NOTE: This operator uses old WFCCell class methods that may not be compatible
-        # with the new architecture. It accesses cell_objects which now only stores
-        # collapsed module objects, not WFCCell instances.
-        # TODO: Refactor this operator to work with the new adapter architecture
+        # Extract and group building plots using generic adapter methods
+        building_plots = adapter.extract_plots_from_grid(
+            plot_type='building',
+            vertex_group_name='building_plot'
+        )
 
-        total_planes_created = 0
-        print("Calculated building plot faces. Creating dummy plot meshes")
+        if not building_plots:
+            self.report({'WARNING'}, "No building plots found. Make sure modules have 'building_plot' vertex groups.")
+            return {'CANCELLED'}
 
-        # Iterate through collapsed cells
-        for coords, cell_obj in adapter.cell_objects.items():
-            # Skip if this is a dict (old debug plane structure)
-            if isinstance(cell_obj, dict):
-                continue
+        # Group plots into islands
+        islands = adapter.group_plot_islands(building_plots, plot_type='building')
 
-            # TODO: This needs refactoring - the old WFCCell methods are not available
-            # in the new architecture. For now, this operator is non-functional.
-            # planes = cell.debug_create_building_plot_planes_from_module()
-            # total_planes_created += len(planes)
+        self.report({'INFO'}, f"Found {len(islands)} building plot islands with {len(building_plots)} total plots")
 
-        self.report({'WARNING'}, f"This operator needs refactoring for new architecture")
+        # Visualize islands with colored planes
+        self.visualize_islands(islands)
+
         return {'FINISHED'}
+
+    def visualize_islands(self, islands):
+        """Create colored debug planes for each island"""
+        import random
+        from .wfc_values import CollectionNames
+        from .collectiontools.collection_creation import get_collection_by_name
+
+        debug_collection = get_collection_by_name(CollectionNames.Debug.value)
+
+        for island in islands:
+            # Random color per island
+            color = (random.random(), random.random(), random.random(), 0.5)
+
+            # Create plane for island bounds
+            bounds = island['combined_bounds']
+            center_x = (bounds[0] + bounds[2]) / 2
+            center_y = (bounds[1] + bounds[3]) / 2
+            width = bounds[2] - bounds[0]
+            height = bounds[3] - bounds[1]
+
+            bpy.ops.mesh.primitive_plane_add(
+                size=1,
+                location=(center_x, center_y, 0.1)
+            )
+            plane = bpy.context.active_object
+            plane.scale = (width/2, height/2, 1)
+            plane.name = f"Island_{island['island_id']}_plots_{len(island['plots'])}"
+
+            # Create material
+            mat = bpy.data.materials.new(name=f"Island_{island['island_id']}_Mat")
+            mat.use_nodes = True
+            mat.node_tree.nodes["Principled BSDF"].inputs[0].default_value = color
+            plane.data.materials.append(mat)
+
+            # Link to debug collection
+            for coll in plane.users_collection:
+                coll.objects.unlink(plane)
+            debug_collection.objects.link(plane)
 
 class OBJECT_OT_DebugCollapse(bpy.types.Operator):
     """Collapse a single cell (useful for debugging step-by-step)"""
