@@ -37,7 +37,7 @@ class BlenderWFCAdapter:
     def __init__(self):
         """Initialize the adapter"""
         self.algorithm = None
-        self.blender_module_map = {}  # algorithm_id -> bpy.types.Object
+        self.blender_module_map = {}  # algorithm_id -> WFCModule instance
         self.algorithm_module_map = {}  # algorithm_id -> AlgorithmModule
         self.cell_objects = {}  # (x, y) -> bpy.types.Object (visualization)
         
@@ -52,7 +52,7 @@ class BlenderWFCAdapter:
             List of AlgorithmModule instances
         """
         algorithm_modules = []
-        
+
         for bpy_module in blender_modules:
             # Extract pure data from Blender WFCModule
             # TODO: Consider caching this conversion if performance becomes an issue
@@ -66,11 +66,12 @@ class BlenderWFCAdapter:
             )
             
             algorithm_modules.append(algo_module)
-            
+
             # Store bidirectional mapping
-            self.blender_module_map[bpy_module.name] = bpy_module.obj_source
+            # NOTE: Store the WFCModule instance (not obj_source) so we can access methods like _calculate_building_plot_faces()
+            self.blender_module_map[bpy_module.name] = bpy_module
             self.algorithm_module_map[bpy_module.name] = algo_module
-        
+
         return algorithm_modules
     
     def build_algorithm_module_pairs(self, algorithm_modules):
@@ -217,8 +218,9 @@ class BlenderWFCAdapter:
         Returns:
             Created Blender object
         """
-        # Get the Blender object for this module
-        source_obj = self.blender_module_map[selected_module.id]
+        # Get the WFCModule for this algorithm module
+        wfc_module = self.blender_module_map[selected_module.id]
+        source_obj = wfc_module.obj_source
 
         # Calculate placement location
         placement_location = (cell.x * module_size, cell.y * module_size, 0)
@@ -497,12 +499,11 @@ class BlenderWFCAdapter:
             algorithm_cell = self.algorithm.grid.cells.get(coords)
             if not algorithm_cell or not algorithm_cell.is_collapsed:
                 continue
-            print()
+
             # Get the Blender module that was placed at this cell
-            algorithm_module_id = algorithm_cell.possible_modules[0]
-            blender_module = self.blender_module_map.get(algorithm_module_id)
-            print(f"algorithm_module_id: {algorithm_module_id}")
-            print(f"blender_module: {blender_module}")
+            # Note: possible_modules[0] is an AlgorithmModule instance, we need its .id property
+            algorithm_module = algorithm_cell.possible_modules[0]
+            blender_module = self.blender_module_map.get(algorithm_module.id)
 
 
             if blender_module and hasattr(blender_module, 'obj_source'):

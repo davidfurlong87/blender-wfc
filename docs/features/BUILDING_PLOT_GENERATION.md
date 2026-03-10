@@ -141,6 +141,8 @@ W=Wall, F=Floor, D=Door
 **Goal:** Make building plot code work with the new adapter architecture
 
 **Tasks:**
+- [ ] Work has been done to implement phase 1, but it's possible the Method/Class names below do not match the current implementation. Verify and update as needed.
+- [ ] Unique building plots are now generated for each building 'island', each has its own colour. The building plot debug mesh is padded, with a gap between its end and the beginning of the pavement. This gap seems to increase with the building plot size, and small building areas have no debug plot mesh at all. This padding should be removed.
 - [ ] Create `BuildingPlotAdapter` class in `wfc_blender_adapter.py`
 - [ ] Add method: `extract_building_plots_from_grid()`
 - [ ] Add method: `group_building_plot_islands()`
