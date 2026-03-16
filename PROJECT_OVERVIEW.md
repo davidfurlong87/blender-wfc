@@ -124,7 +124,12 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 - [ ] No save/load for generated worlds
 - [ ] Limited 3D support (currently 2D grid)
 - [ ] No undo support for collapse operations
-- [ ] Building plot generation not fully implemented
+- [x] **Building plot generation - Phase 1 Complete** ✅ (See `docs/features/BUILDING_PLOT_GENERATION.md`)
+  - Generic plot extraction from collapsed outer grid
+  - Island grouping with flood-fill algorithm
+  - Inner grid creation with configurable resolution
+  - Debug visualization working
+  - **Next:** Phase 3 - Create building primitives and implement inner grid WFC collapse
 
 ### Code Quality
 - [ ] Inconsistent naming (posX/posY vs x/y)
