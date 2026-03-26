@@ -1,5 +1,6 @@
 import bpy
 
+# TODO: confirm these imports are in-line with the standards set in __init__.py. Confirm they'll correctly reload
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, CONNECTORS, PrimitiveModules, PrimitiveDefinition
 from .wfc_classes import Primitive
 from .wfc_materials import MaterialPrimitives
@@ -9,6 +10,7 @@ from .primitive_generation_tools import get_primitive_type_items, mesh_to_mesh_d
 from bpy.props import EnumProperty
 from .primitive_data_actual import *
 
+# TODO: confirm (or not) if this approach can successfully create a dynamic enum in operator contexts
 def get_primitive_type_items(self, context):
     """Dynamic enum  items for primitive types"""
     items = PRIMITIVE_TYPES.copy()
@@ -28,46 +30,56 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        # TODO: somewhere in this panel there should be a management system for primitive types, connector types, plot types etc. Allow users to quickly create and delete their own.
+        # TODO: Import/export/profile system for the above. The import could be a colleciton of types and their details. need to amend primitive types class to include grid resolution.
+
+
         # TODO: Var for total primitives in scene
-        # TODO: Import/export for primitives types/connectors/plot_definitions 
         obj = context.object
-        if obj:        
-            # TODO: check in code or in object properties?
-            # TODO: Hasattr   
+        if obj:         
             row = layout.row()
             row.operator("object.wfc_convert_to_primitive")
+            # TODO: align the below code with blender_adapter updates.
             if obj.primitive_type and obj.primitive_type != 'NONE':
+                # i.e. is this object already added to primitives? If so, show the user the details.
+                # TODO: align with blender adapter. 
+                # TODO: the below should be read-only, unless the user forces an update
+                # TODO: show warning if there's a discrepancy between this object and the blender adapter data.
                 layout.prop(obj, "primitive_type")
             else:
                 row = layout.row()
                 row.operator("object.wfc_assign_primitive_type")
+            # TODO: the below should be displayed if the user has already made this object a primitive. should be read-only, unless the user forces an update
             # if connectors
                 #     layout.prop(obj, "x_pos_connector")
                 #     layout.prop(obj, "x_neg_connector")
                 #     layout.prop(obj, "y_pos_connector")
                 #     layout.prop(obj, "y_neg_connector")
             # else    
+            # TODO: some sort of error-handling here would be good. No connectors? Why not?
                 # button to add connectors
                 # layout.operator("object.connector")
-                    # TODO: other conditional for unique plot groups
-                    # TODO: Edit mode operator for adding vertex group to plots definition?
+                    # TODO: Edit mode operator for adding vertex group to plots definition? allow user to select faces/edges/verts and assign to a pre-configured vertex group (matching plots, or a generic form of them)
                         # TODO: for above, allow for selection from current plots, or to assign a new one
                     # TODO: Edit mode operator for adding vertex group (edge) to connectors
-                        # TODO: for above, allow for selection from current connectors, or to assign a new one
-            # else
-                # layout.operator("object.primitive_establisher")                   
+                        # TODO: for above, allow for selection from current connectors, or to assign a new one                 
 
 class OBJECT_OT_WFCAssignPrimitiveType(bpy.types.Operator):
     """Assigns a pre-existing WFC Primitive Type to Object"""
     bl_idname = "object.wfc_assign_primitive_type"
     bl_label = "Assign Primitive Type"
 
+# TODO: the idea here is to have a single source of truth for primitive types, defined elsewhere.
+# TODO: when the user selects "Assign Primitive Type" they'll be presented with a drop-down box, from which they can select their primitive type and assign it to this object.
+# TODO: another solution might be to have a drop-down box on the panel at all times. user selects object -> selects type from box -> hits "assign"
+# TODO: regardless of solution, all relevant components in the adapter/algorithm must be updated, maintaining a single source of truth
     prim_type: EnumProperty(
         name="Primitive Type",
         description="Select primitive type to assign",
         items=get_primitive_type_items,
     ) # type: ignore
 
+# TODO: could be replaced with the primitive management system above.
     custom_type_name: bpy.props.StringProperty(
         name="Custom Type Name",
         description="Name for new custom primitive type",

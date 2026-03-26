@@ -2,7 +2,7 @@ from .wfc_classes import Primitive
 from .wfc_materials import MaterialPrimitives
 from .wfc_enums import PrimitiveModules
 
-
+# TODO: alt methods are the ones used here. confirm in blender that the others are defunct and remove when safe
 def corner_primitive():
     return Primitive(
         name=PrimitiveModules.Corner.value,

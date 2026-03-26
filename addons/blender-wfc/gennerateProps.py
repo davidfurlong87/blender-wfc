@@ -103,6 +103,7 @@ def get_collection(collection_name):
 # Building Prefabs Functions
 # ----------------------------------------------
 
+# TODO: Is this used? if not, determine if useful anywhere, otherwise delete
 def generate_default_prefabs(object_list):   
     current_id = 0
     for obj in object_list:
