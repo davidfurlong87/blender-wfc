@@ -138,6 +138,12 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 - [ ] TODO comments need addressing
 - [ ] Missing docstrings on many functions
 
+### Future Testing
+- [ ] Lots of hardcoded terms like connectors, primitives. One change could break a lot of things. Need a test for this stuff to make sure everything still works.
+- [ ] Add unit tests for all new functions
+- [ ] Add integration tests for full pipeline
+- [ ] Add UI tests for operator workflows
+
 ### Known Bugs
 #### Addon Loading Error
 When loading the addon the following error occurs.

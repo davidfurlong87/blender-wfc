@@ -1,0 +1,2 @@
+# User Stories
+- I am a user who has just created a primitive in blender. I want to experiment with some new connector types, but they don't exist yet. I'd like to quickly create some new ones, define their pairs, and then generate some modules so I can see how they work in the grid. If this breaks the current setup, I can always delete the primitive and start again, if so, I want the option of deleting the connectors also.

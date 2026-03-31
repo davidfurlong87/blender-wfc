@@ -31,8 +31,8 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         # TODO: somewhere in this panel there should be a management system for primitive types, connector types, plot types etc. Allow users to quickly create and delete their own.
-        # TODO: Import/export/profile system for the above. The import could be a colleciton of types and their details. need to amend primitive types class to include grid resolution.
-
+        # TODO: Import/export/profile system for the above. The import could be a collection of types and their details. need to amend primitive types class to include grid resolution.
+        # TODO: Primitive 
 
         # TODO: Var for total primitives in scene
         obj = context.object
