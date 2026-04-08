@@ -47,8 +47,8 @@ if "bpy" in locals():
         importlib.reload(wfc_plot_tools)
 
     # Level 4: Modules that depend on Level 0-3
-    if "primitive_data" in locals():
-        importlib.reload(primitive_data)
+    if "primitive_ui" in locals():
+        importlib.reload(primitive_ui)
     if "wfc_collections" in locals():
         importlib.reload(wfc_collections)
     if "wfc_operators" in locals():
@@ -66,7 +66,7 @@ from .collectiontools.collection_creation import *
 from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
 from .primitive_generation_tools import *
 from .primitive_data_actual import *
-from .primitive_data import build_default_primitives, PrimitiveModules, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
+from .primitive_ui import build_default_primitives, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
 # wfc_grid_builder removed in Phase 4 - functionality moved to adapter
 from .wfc_plots import *
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
