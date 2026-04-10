@@ -79,6 +79,7 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
         obj = context.object
         
         # Check if object is valid
+        # TODO: this check skips the 'always available' load from json method below when no object is selected. with no obj here, the user has no way of loading from json
         if not obj or obj.type != 'MESH':
             layout.label(text="Select a mesh object", icon='ERROR')
             return
@@ -92,6 +93,7 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
             row = box.row()
             row.prop(obj, "primitive_type", text="Type")
             row.enabled = False
+            # TODO: below will correctly assign primitive type, but will not copy the connectors, possibly because they aren't saved project-wide when editing a primitive's connectors 
             box.operator("object.wfc_assign_primitive_type", text="Change Type", icon='EDITMODE_HLT')
         else:
             box.operator("object.wfc_assign_primitive_type", text="Assign Type", icon='ADD')
@@ -124,6 +126,7 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
             box.operator("object.wfc_save_primitive", text="Save to JSON", icon='EXPORT')
         
         # Section 4: Load (always available)
+        # TODO: make always available? At the moment a primitive can only be loaded if an object in the scene is se
         if PERSISTENCE_AVAILABLE:
             layout.operator("object.wfc_load_primitive", text="Load from JSON", icon='IMPORT')
         
