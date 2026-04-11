@@ -101,162 +101,414 @@
 
 ---
 
-## 📅 Implementation Schedule
+## 📅 Complete Implementation Schedule
 
-### **Phase 1: Foundation (3-4 hours)**
+**Total Estimated Time: 18-25 hours** (MVP: 14-19 hours)
 
-#### **Task 1.1: Create ConnectorRegistry** (2 hours)
-- [ ] Create `connector_registry.py`
+---
+
+### **MILESTONE 1: Core Metadata System** (6-8 hours)
+
+**Goal:** Replace all hardcoded values with persisted metadata
+
+---
+
+#### **Phase 1A: Primitive Sizing Metadata** (2-3 hours)
+
+**Task 1A.1: Add Sizing Fields to PrimitiveData** (1 hour) ⭐ **START HERE**
+- [ ] Modify `addons/blender-wfc/primitive_data_core.py`:
+  - [ ] Add `physical_size: float = 8.0`
+  - [ ] Add `grid_category: str = "outer_grid"`
+  - [ ] Add `resolution_multiplier: int = 1`
+  - [ ] Add `visualization_offset: float = None` (optional)
+- [ ] Update `validate()` method:
+  - [ ] Check `physical_size > 0`
+  - [ ] Check `resolution_multiplier >= 1`
+  - [ ] Check `grid_category` in allowed list
+  - [ ] Validate consistency (outer_grid → resolution=1)
+- [ ] Update `to_dict()` to include new fields
+- [ ] Update `from_dict()` with defaults for backward compatibility
+
+**Task 1A.2: Update Serialization & Tests** (1 hour)
+- [ ] Test primitive with new fields serializes correctly
+- [ ] Test old JSON files load with defaults
+- [ ] Update `tests/test_primitive_data.py`:
+  - [ ] Test new field validation
+  - [ ] Test JSON round-trip with metadata
+  - [ ] Test backward compatibility
+- [ ] Verify no breaking changes
+
+**Task 1A.3: Update PrimitiveAdapter** (30 min)
+- [ ] Modify `primitive_adapter.py`:
+  - [ ] Extract sizing metadata from Blender objects
+  - [ ] Apply sizing metadata when creating Blender objects
+  - [ ] Set custom properties on created objects
+- [ ] Test: Extract → Create round-trip preserves metadata
+
+---
+
+#### **Phase 1B: Connector Registry System** (2-3 hours)
+
+**Task 1B.1: Create ConnectorRegistry** (2 hours)
+- [ ] Create `addons/blender-wfc/connector_registry.py`:
   - [ ] `ConnectorDefinition` dataclass
+    - [ ] `name: str`
+    - [ ] `description: str`
+    - [ ] `compatible_with: List[str]`
+    - [ ] `grid_category: str`
+    - [ ] `is_symmetric: bool`
   - [ ] `ConnectorRegistry` class
-  - [ ] `matches()` method
-  - [ ] JSON serialization
-- [ ] Create `data/connectors.json` with defaults
-- [ ] Test: Load and query registry
+    - [ ] `register(connector)` method
+    - [ ] `get(name)` method
+    - [ ] `matches(a, b)` method ⭐ **Key function**
+    - [ ] `get_all_for_category(category)` method
+    - [ ] `to_dict()` / `from_dict()` for JSON
+    - [ ] `save_to_file()` / `load_from_file()`
+  - [ ] Global instance: `connector_registry`
+  - [ ] `_load_defaults()` with outer grid connectors
 
-#### **Task 1.2: Add Sizing to PrimitiveData** (1 hour)
-- [ ] Add fields to `primitive_data_core.py`:
-  - [ ] `physical_size: float = 8.0`
-  - [ ] `grid_category: str = "outer_grid"`
-  - [ ] `resolution_multiplier: int = 1`
-- [ ] Update `validate()` method
-- [ ] Update `to_dict()` and `from_dict()`
-- [ ] Test: Create primitive with metadata, serialize, deserialize
+**Task 1B.2: Create Default Connector Library** (30 min)
+- [ ] Create `addons/blender-wfc/data/` directory
+- [ ] Create `addons/blender-wfc/data/connectors.json`:
+  - [ ] ROAD → ROAD
+  - [ ] BUILDING → BUILDING
+  - [ ] PAVEMENTPOS → PAVEMENTNEG
+  - [ ] PAVEMENTNEG → PAVEMENTPOS
+  - [ ] WALL, DOOR, WINDOW, HALLWAY (building connectors)
+- [ ] Add file format versioning
 
-#### **Task 1.3: Update Tests** (30 min)
-- [ ] Add tests for new fields
-- [ ] Test validation
-- [ ] Test JSON round-trip
-
----
-
-### **Phase 2: Integration (3-4 hours)**
-
-#### **Task 2.1: Replace Hardcoded Socket Matching** (1 hour)
-- [ ] Update `wfc_classes.sockets_match()`:
-  ```python
-  def sockets_match(socket_a, socket_b):
-      from .connector_registry import connector_registry
-      return connector_registry.matches(socket_a, socket_b)
-  ```
-- [ ] Update `wfc_blender_adapter._sockets_match()` similarly
-- [ ] Test: Verify existing primitives still work
-
-#### **Task 2.2: Update Enums to Use Registry** (1 hour)
-- [ ] Modify `wfc_enums.py`:
-  - [ ] `get_connector_enum_items()` function
-  - [ ] Dynamic `CONNECTORS` generation
-- [ ] Update `__init__.py` property registration
-- [ ] Test: Connectors appear in UI
-
-#### **Task 2.3: Refactor Module Generation** (2 hours)
-- [ ] Update `generate_modules_from_primitives()`:
-  - [ ] Read `physical_size` from primitive
-  - [ ] Calculate offset dynamically
-  - [ ] No `module_size` global usage
-- [ ] Update `BlenderWFCAdapter.create_blender_object_for_cell()`:
-  - [ ] Use module's `physical_size`
-  - [ ] Dynamic cell placement
-- [ ] Test: Generate modules from primitives
+**Task 1B.3: Load Registry on Startup** (30 min)
+- [ ] Modify `addons/blender-wfc/__init__.py`:
+  - [ ] Import connector_registry
+  - [ ] Load `data/connectors.json` in `register()`
+  - [ ] Add error handling for missing file
+- [ ] Test: Registry loads on addon enable
 
 ---
 
-### **Phase 3: UI & Polish (2-3 hours)**
+#### **Phase 1C: Replace Hardcoded Socket Matching** (1-2 hours)
 
-#### **Task 3.1: Update Primitive UI** (2 hours)
-- [ ] Modify `OBJECT_OT_WFCAssignConnectors`:
-  - [ ] Add `physical_size` field
-  - [ ] Add `grid_category` enum
-  - [ ] Add `resolution_multiplier` field
-  - [ ] Auto-calculate helper display
-- [ ] Update panel to show metadata
-- [ ] Test: Assign metadata via UI
+**Task 1C.1: Update Core Matching Function** (30 min)
+- [ ] Modify `addons/blender-wfc/wfc_classes.py`:
+  - [ ] Replace `sockets_match()` body:
+    ```python
+    def sockets_match(socket_a, socket_b):
+        from .connector_registry import connector_registry
+        return connector_registry.matches(socket_a, socket_b)
+    ```
+  - [ ] Add deprecation comment
 
-#### **Task 3.2: Deprecate Hardcoded Values** (30 min)
-- [ ] Update `wfc_values.py`:
-  - [ ] Add deprecation comments
-  - [ ] Add `GridCategory` class
-  - [ ] Add `DEFAULT_GRID_SIZES` dict
-- [ ] Verify backward compatibility
+**Task 1C.2: Update Adapter Matching** (30 min)
+- [ ] Modify `addons/blender-wfc/wfc_blender_adapter.py`:
+  - [ ] Update `_sockets_match()` to use registry
+  - [ ] Remove hardcoded logic
 
-#### **Task 3.3: Create Default Connector Library** (30 min)
-- [ ] Populate `data/connectors.json` with:
-  - [ ] ROAD, BUILDING, PAVEMENTPOS, PAVEMENTNEG (outer_grid)
-  - [ ] WALL, DOOR, WINDOW, HALLWAY (building)
-- [ ] Add load function in `__init__.py`
+**Task 1C.3: Test Backward Compatibility** (30 min)
+- [ ] Test existing primitives still match correctly
+- [ ] Verify ROAD matches ROAD
+- [ ] Verify PAVEMENTPOS matches PAVEMENTNEG
+- [ ] Test module pair building works
 
 ---
 
-### **Phase 4: Testing & Validation (2 hours)**
+### **MILESTONE 2: Dynamic Sizing Integration** (4-6 hours)
 
-#### **Task 4.1: Recreate Hardcoded Primitives** (1 hour)
-- [ ] Create primitives matching `primitive_data_actual.py`
-- [ ] Assign all metadata (size, category, connectors)
-- [ ] Save to JSON
-- [ ] Load from JSON
-- [ ] Verify geometry matches
+**Goal:** Module generation and grid use metadata, no hardcoded sizes
 
-#### **Task 4.2: Test Full Workflow** (1 hour)
-- [ ] Create outer grid primitive (8m)
-- [ ] Save to `outer_grid_library.json`
-- [ ] Load library
+---
+
+#### **Phase 2A: Update Enums & Properties** (1-2 hours)
+
+**Task 2A.1: Make Connector Enums Dynamic** (1 hour)
+- [ ] Modify `addons/blender-wfc/wfc_enums.py`:
+  - [ ] Create `get_connector_enum_items()` function
+  - [ ] Generate `CONNECTORS` from registry
+  - [ ] Create `get_connector_items_for_category(category)` for filtering
+- [ ] Test: CONNECTORS list contains all registry items
+
+**Task 2A.2: Update Property Registration** (1 hour)
+- [ ] Modify `addons/blender-wfc/__init__.py`:
+  - [ ] Add `physical_size` property to Object
+  - [ ] Add `grid_category` property to Object
+  - [ ] Add `resolution_multiplier` property to Object
+  - [ ] Update connector properties to use dynamic enums (if possible)
+- [ ] Test: Properties appear on objects
+
+---
+
+#### **Phase 2B: Refactor Module Generation** (2-3 hours)
+
+**Task 2B.1: Update generate_modules_from_primitives()** (2 hours)
+- [ ] Modify `addons/blender-wfc/__init__.py`:
+  - [ ] Read `physical_size` from primitive objects
+  - [ ] Read `grid_category` from primitive objects
+  - [ ] Calculate `offset = physical_size * 2` (dynamic)
+  - [ ] Position modules using `physical_size` not `module_size`
+  - [ ] Store metadata on WFCModule instances
+  - [ ] No references to global `module_size`
+- [ ] Test: Generate modules from primitives with different sizes
+
+**Task 2B.2: Update BlenderWFCAdapter for Dynamic Sizing** (1 hour)
+- [ ] Modify `addons/blender-wfc/wfc_blender_adapter.py`:
+  - [ ] Update `create_blender_object_for_cell()`:
+    - [ ] Read `physical_size` from module
+    - [ ] Calculate placement: `cell.x * physical_size`
+  - [ ] Update `create_blender_visualization_grid()`:
+    - [ ] Use module's `physical_size` for grid spacing
+  - [ ] Remove all `module_size` references
+- [ ] Test: Grid cells sized correctly
+
+**Task 2B.3: Deprecate wfc_values.py Globals** (30 min)
+- [ ] Modify `addons/blender-wfc/wfc_values.py`:
+  - [ ] Add deprecation warnings to `module_size`
+  - [ ] Add deprecation warnings to `primitive_offset_x`
+  - [ ] Create `GridCategory` class
+  - [ ] Create `DEFAULT_GRID_SIZES` dict (reference only)
+- [ ] Test: Code still runs with warnings
+
+---
+
+### **MILESTONE 3: UI & Workflow** (3-4 hours)
+
+**Goal:** Users can assign and manage metadata via UI
+
+---
+
+#### **Phase 3A: Update Primitive UI** (2-3 hours)
+
+**Task 3A.1: Add Sizing to Assign Connectors Operator** (2 hours)
+- [ ] Modify `addons/blender-wfc/primitive_ui.py`:
+  - [ ] Add to `OBJECT_OT_WFCAssignConnectors`:
+    - [ ] `physical_size: FloatProperty`
+    - [ ] `grid_category: EnumProperty`
+    - [ ] `resolution_multiplier: IntProperty`
+  - [ ] Update `invoke()` to pre-populate from object
+  - [ ] Update `draw()` with size metadata section
+  - [ ] Add auto-calculate helper display
+  - [ ] Update `execute()` to set object properties
+- [ ] Test: Can assign metadata via dialog
+
+**Task 3A.2: Update Panel Display** (1 hour)
+- [ ] Modify `OBJECT_PT_WFCPrimitiveBuilderPanel`:
+  - [ ] Show current size metadata (read-only)
+  - [ ] Display grid category
+  - [ ] Display physical size and resolution
+- [ ] Test: Panel shows metadata correctly
+
+---
+
+#### **Phase 3B: UI Polish & Fixes** (1 hour)
+
+**Task 3B.1: Fix Load Button Availability** (30 min)
+- [ ] Modify `primitive_ui.py`:
+  - [ ] Move "Load from JSON" button before object check
+  - [ ] Always available regardless of selection
+- [ ] Test: Can load primitive without selecting object
+
+**Task 3B.2: Add Helper Functions** (30 min)
+- [ ] Add utility functions:
+  - [ ] `get_primitives_by_category(category)` - Filter primitives
+  - [ ] `calculate_cell_size(physical_size, resolution)` - Helper
+- [ ] Test: Helper functions work correctly
+
+---
+
+### **MILESTONE 4: Testing & Validation** (2-3 hours)
+
+**Goal:** Verify system works end-to-end with no hardcoded values
+
+---
+
+#### **Phase 4A: Core System Testing** (1-2 hours)
+
+**Task 4A.1: Recreate Hardcoded Primitives** (1 hour)
+- [ ] Create primitives matching `primitive_data_actual.py`:
+  - [ ] Building primitive (8m, outer_grid, resolution=1)
+  - [ ] Road primitive (8m, outer_grid, resolution=1)
+  - [ ] Pavement primitive (8m, outer_grid, resolution=1)
+  - [ ] Corner primitive (8m, outer_grid, resolution=1)
+- [ ] Assign all metadata via UI
+- [ ] Save to `data/outer_grid_library.json`
+- [ ] Test: Load and verify geometry identical
+
+**Task 4A.2: Test Full Outer Grid Workflow** (1 hour)
+- [ ] Load outer grid primitives
+- [ ] Build primitives collection
 - [ ] Generate modules
-- [ ] Build grid
+- [ ] Build grid (e.g., 5x5)
 - [ ] Collapse grid
-- [ ] Verify NO hardcoded values used
+- [ ] Verify:
+  - [ ] No errors
+  - [ ] Modules positioned correctly
+  - [ ] Connectors match correctly
+  - [ ] Grid cells are 8m × 8m
+  - [ ] NO `module_size` used anywhere
 
 ---
 
-## ✅ Success Criteria
+#### **Phase 4B: Multi-Grid Testing** (1 hour)
 
-**System is complete when:**
+**Task 4B.1: Create Building Primitives** (30 min)
+- [ ] Create test building primitive:
+  - [ ] physical_size = 2.0
+  - [ ] grid_category = "building"
+  - [ ] resolution_multiplier = 4
+  - [ ] Connectors: WALL, DOOR, WINDOW
+- [ ] Save to `data/building_library.json`
+- [ ] Load and verify
 
-- [ ] Can create primitive with metadata in UI
-- [ ] All metadata saved to JSON
-- [ ] Load primitive from JSON with all metadata
-- [ ] Generate modules using primitive's `physical_size`
-- [ ] Grid uses dynamic cell sizing
-- [ ] Connector matching uses registry only
-- [ ] Can add new connector without code change
-- [ ] Can support building grid (2m) alongside outer grid (8m)
-- [ ] NO references to global `module_size` in critical paths
-- [ ] NO hardcoded connector rules in code
+**Task 4B.2: Test Building Module Generation** (30 min)
+- [ ] Load building primitives
+- [ ] Generate building modules
+- [ ] Verify:
+  - [ ] Modules positioned at 2m spacing
+  - [ ] Different from outer grid modules
+  - [ ] Metadata preserved
+- [ ] (Inner grid integration deferred to MILESTONE 5)
 
 ---
 
-## 📊 Time Estimate Summary
+### **MILESTONE 5: Inner Grid Integration** (Optional - 5-8 hours)
 
-| Phase | Tasks | Estimated Time |
-|-------|-------|----------------|
-| **Phase 1** | Foundation | 3-4 hours |
-| **Phase 2** | Integration | 3-4 hours |
-| **Phase 3** | UI & Polish | 2-3 hours |
-| **Phase 4** | Testing | 2 hours |
-| **Total** | | **10-13 hours** |
+**Goal:** Building inner grids work with new metadata system
+
+---
+
+#### **Phase 5A: Primitive Library Management** (2-3 hours)
+
+**Task 5A.1: Category-Based Library System** (2 hours)
+- [ ] Modify `primitive_persistence.py`:
+  - [ ] `save_primitives_library_by_category()`
+  - [ ] `load_primitives_by_category()`
+  - [ ] Filter by grid_category
+- [ ] Create library structure:
+  - [ ] `data/outer_grid_library.json`
+  - [ ] `data/building_library.json`
+  - [ ] `data/park_library.json`
+
+**Task 5A.2: Library UI Operators** (1 hour)
+- [ ] Create `OBJECT_OT_WFCLoadPrimitiveLibrary`
+- [ ] Create `OBJECT_OT_WFCSavePrimitiveLibrary`
+- [ ] Add to panel with category selection
+
+---
+
+#### **Phase 5B: Module Generation Refactoring** (1-2 hours)
+
+**Task 5B.1: Create Category-Specific Generators** (1-2 hours)
+- [ ] Add `generate_building_modules()` to `__init__.py`
+- [ ] Add `generate_park_modules()` to `__init__.py`
+- [ ] Refactor common logic
+- [ ] Store in categorized collections
+
+---
+
+#### **Phase 5C: Inner Grid Workflow Integration** (2-3 hours)
+
+**Task 5C.1: Update BlenderWFCAdapter for Inner Grids** (2 hours)
+- [ ] Add `get_modules_for_category(category)` method
+- [ ] Update `create_inner_grid_for_island()`:
+  - [ ] Accept `category` parameter
+  - [ ] Auto-load modules if not provided
+  - [ ] Use correct `physical_size` for grid
+
+**Task 5C.2: Update Building Plot Operators** (1 hour)
+- [ ] Auto-generate building modules if needed
+- [ ] Pass building modules to inner grid creation
+- [ ] Test full building generation workflow
+
+---
+
+## 📊 Updated Time Estimates
+
+| Milestone | Phases | Total Time | Priority |
+|-----------|--------|------------|----------|
+| **M1: Core Metadata** | 1A, 1B, 1C | 6-8 hours | **Critical** |
+| **M2: Dynamic Sizing** | 2A, 2B | 4-6 hours | **Critical** |
+| **M3: UI & Workflow** | 3A, 3B | 3-4 hours | **Critical** |
+| **M4: Testing** | 4A, 4B | 2-3 hours | **Critical** |
+| **M5: Inner Grid** | 5A, 5B, 5C | 5-8 hours | Optional |
+| **TOTAL (MVP)** | M1-M4 | **15-21 hours** | |
+| **TOTAL (Full)** | M1-M5 | **20-29 hours** | |
+
+---
+
+## ✅ Success Criteria by Milestone
+
+### **Milestone 1 Success Criteria**
+- [ ] PrimitiveData has sizing fields with validation
+- [ ] Connector registry loads from JSON
+- [ ] `sockets_match()` uses registry
+- [ ] Existing primitives still work
+- [ ] Tests pass
+
+### **Milestone 2 Success Criteria**
+- [ ] Connector enums generated from registry
+- [ ] Module generation reads `physical_size` from primitives
+- [ ] Grid cells sized dynamically (no `module_size` global)
+- [ ] Can generate modules with different sizes
+- [ ] Tests pass
+
+### **Milestone 3 Success Criteria**
+- [ ] UI can assign sizing metadata
+- [ ] UI can assign connectors filtered by category
+- [ ] Load button always available
+- [ ] Panel displays metadata
+- [ ] User can create primitive with full metadata
+
+### **Milestone 4 Success Criteria**
+- [ ] Can recreate hardcoded primitives from JSON
+- [ ] Outer grid workflow works end-to-end
+- [ ] Building primitives (2m) can be created and saved
+- [ ] NO hardcoded values used in critical paths
+- [ ] Full system validation complete
+
+### **Milestone 5 Success Criteria (Optional)**
+- [ ] Library management by category works
+- [ ] Building modules generate correctly
+- [ ] Inner grid uses building modules
+- [ ] Building islands collapse with inner grids
+- [ ] Multi-grid system fully functional
 
 ---
 
 ## 🎯 Immediate Next Steps
 
-**Start with Phase 1, Task 1.2** (Easiest first):
+**START HERE: Task 1A.1** ⭐ (Marked in schedule above)
 
+This is the foundation for everything else. Here's exactly what to do:
+
+### **Step 1: Add 3 fields to PrimitiveData** (30-45 min)
+
+**File:** `addons/blender-wfc/primitive_data_core.py`
+
+**Add these fields:**
 ```python
-# addons/blender-wfc/primitive_data_core.py
-
 @dataclass
 class PrimitiveData:
-    # ... existing fields ...
-    
-    # NEW: Sizing metadata
+    # ... existing fields (name, primitive_type, verts, etc.) ...
+
+    # NEW: Physical size metadata
     physical_size: float = 8.0
+    """Physical size of this primitive in meters"""
+
     grid_category: str = "outer_grid"
+    """Which grid system: 'outer_grid', 'building', 'park', etc."""
+
     resolution_multiplier: int = 1
+    """How many cells fit in one outer grid cell"""
 ```
 
-**Estimated time: 30 minutes**
+**Update validation, to_dict(), and from_dict()** as shown in design docs.
 
-Then continue with Task 1.1 (ConnectorRegistry), then integration.
+### **Step 2: Test immediately** (15 min)
+
+Create a test primitive with metadata, validate, serialize, and deserialize.
+
+### **Step 3: Continue to Task 1A.2**
+
+Update tests and serialization, then move to PrimitiveAdapter updates.
 
 ---
 
-**Ready to start?** I recommend beginning with the primitive sizing (Task 1.2) since it's the quickest win and gives immediate value!
+**See schedule above for complete task breakdown!** 🚀

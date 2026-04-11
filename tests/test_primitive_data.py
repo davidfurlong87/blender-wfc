@@ -255,6 +255,293 @@ class TestPrimitiveDataSerialization:
         assert primitive.neg_x_connector == "ROAD"
 
 
+class TestPrimitiveSizingMetadata:
+    """Test sizing metadata fields (Task 1A.2)"""
+
+    def test_default_sizing_values(self):
+        """Test that sizing fields have correct defaults"""
+        primitive = PrimitiveData(
+            name="Test",
+            primitive_type="ROAD",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD"
+        )
+
+        # Check defaults
+        assert primitive.physical_size == 8.0
+        assert primitive.grid_category == "outer_grid"
+        assert primitive.resolution_multiplier == 1
+
+    def test_custom_sizing_values(self):
+        """Test primitives with custom sizing values"""
+        building_prim = PrimitiveData(
+            name="Building_Room",
+            primitive_type="BUILDING",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="WALL",
+            neg_x_connector="DOOR",
+            pos_y_connector="WALL",
+            neg_y_connector="WINDOW",
+            physical_size=2.0,
+            grid_category="building",
+            resolution_multiplier=4
+        )
+
+        assert building_prim.physical_size == 2.0
+        assert building_prim.grid_category == "building"
+        assert building_prim.resolution_multiplier == 4
+
+        # Should be valid
+        is_valid, errors = building_prim.validate()
+        assert is_valid, f"Building primitive should be valid: {errors}"
+
+    def test_park_primitive_sizing(self):
+        """Test park primitive with fine resolution"""
+        park_prim = PrimitiveData(
+            name="Park_Detail",
+            primitive_type="PARK",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="GRASS",
+            neg_x_connector="PATH",
+            pos_y_connector="GRASS",
+            neg_y_connector="GRASS",
+            physical_size=1.0,
+            grid_category="park",
+            resolution_multiplier=8
+        )
+
+        assert park_prim.physical_size == 1.0
+        assert park_prim.grid_category == "park"
+        assert park_prim.resolution_multiplier == 8
+
+        is_valid, errors = park_prim.validate()
+        assert is_valid, f"Park primitive should be valid: {errors}"
+
+    def test_negative_physical_size_fails(self):
+        """Test that negative physical_size fails validation"""
+        primitive = PrimitiveData(
+            name="Invalid",
+            primitive_type="TEST",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD",
+            physical_size=-1.0  # Invalid!
+        )
+
+        is_valid, errors = primitive.validate()
+        assert not is_valid
+        assert any("physical_size" in err and "positive" in err for err in errors)
+
+    def test_zero_physical_size_fails(self):
+        """Test that zero physical_size fails validation"""
+        primitive = PrimitiveData(
+            name="Invalid",
+            primitive_type="TEST",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD",
+            physical_size=0.0  # Invalid!
+        )
+
+        is_valid, errors = primitive.validate()
+        assert not is_valid
+        assert any("physical_size" in err for err in errors)
+
+    def test_invalid_resolution_multiplier_fails(self):
+        """Test that resolution_multiplier < 1 fails validation"""
+        primitive = PrimitiveData(
+            name="Invalid",
+            primitive_type="TEST",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD",
+            resolution_multiplier=0  # Invalid!
+        )
+
+        is_valid, errors = primitive.validate()
+        assert not is_valid
+        assert any("resolution_multiplier" in err for err in errors)
+
+    def test_invalid_grid_category_fails(self):
+        """Test that unknown grid_category fails validation"""
+        primitive = PrimitiveData(
+            name="Invalid",
+            primitive_type="TEST",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD",
+            grid_category="invalid_category"  # Invalid!
+        )
+
+        is_valid, errors = primitive.validate()
+        assert not is_valid
+        assert any("grid_category" in err for err in errors)
+
+    def test_outer_grid_inconsistent_resolution_fails(self):
+        """Test that outer_grid with resolution != 1 fails validation"""
+        primitive = PrimitiveData(
+            name="Inconsistent",
+            primitive_type="ROAD",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD",
+            grid_category="outer_grid",
+            resolution_multiplier=4  # Should be 1 for outer_grid!
+        )
+
+        is_valid, errors = primitive.validate()
+        assert not is_valid
+        assert any("outer grid" in err.lower() and "resolution" in err.lower() for err in errors)
+
+    def test_sizing_serialization(self):
+        """Test that sizing fields serialize to dict"""
+        primitive = PrimitiveData(
+            name="Test",
+            primitive_type="BUILDING",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="WALL",
+            neg_x_connector="DOOR",
+            pos_y_connector="WALL",
+            neg_y_connector="WALL",
+            physical_size=2.0,
+            grid_category="building",
+            resolution_multiplier=4
+        )
+
+        data = primitive.to_dict()
+
+        # Check that sizing fields are in dict
+        assert 'physical_size' in data
+        assert 'grid_category' in data
+        assert 'resolution_multiplier' in data
+
+        # Check values
+        assert data['physical_size'] == 2.0
+        assert data['grid_category'] == 'building'
+        assert data['resolution_multiplier'] == 4
+
+    def test_sizing_deserialization(self):
+        """Test that sizing fields deserialize from dict"""
+        data = {
+            'name': 'Test',
+            'primitive_type': 'BUILDING',
+            'verts': [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]],
+            'faces': [[0, 1, 2]],
+            'mat_indices': [0],
+            'material_names': ['Material'],
+            'connectors': {
+                'pos_x': 'WALL',
+                'neg_x': 'DOOR',
+                'pos_y': 'WALL',
+                'neg_y': 'WALL'
+            },
+            'physical_size': 2.0,
+            'grid_category': 'building',
+            'resolution_multiplier': 4
+        }
+
+        primitive = PrimitiveData.from_dict(data)
+
+        assert primitive.physical_size == 2.0
+        assert primitive.grid_category == 'building'
+        assert primitive.resolution_multiplier == 4
+
+    def test_sizing_round_trip(self):
+        """Test that sizing fields survive round-trip serialization"""
+        original = PrimitiveData(
+            name="RoundTrip",
+            primitive_type="BUILDING",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="WALL",
+            neg_x_connector="DOOR",
+            pos_y_connector="WALL",
+            neg_y_connector="WALL",
+            physical_size=2.0,
+            grid_category="building",
+            resolution_multiplier=4
+        )
+
+        data = original.to_dict()
+        reconstructed = PrimitiveData.from_dict(data)
+
+        assert reconstructed.physical_size == original.physical_size
+        assert reconstructed.grid_category == original.grid_category
+        assert reconstructed.resolution_multiplier == original.resolution_multiplier
+
+    def test_backward_compatibility_defaults(self):
+        """Test that old JSON without sizing fields loads with defaults"""
+        # Simulate old JSON format (no sizing fields)
+        old_data = {
+            'name': 'Legacy',
+            'primitive_type': 'ROAD',
+            'verts': [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]],
+            'faces': [[0, 1, 2]],
+            'mat_indices': [0],
+            'material_names': ['Material'],
+            'connectors': {
+                'pos_x': 'ROAD',
+                'neg_x': 'ROAD',
+                'pos_y': 'ROAD',
+                'neg_y': 'ROAD'
+            }
+            # NOTE: No physical_size, grid_category, or resolution_multiplier
+        }
+
+        primitive = PrimitiveData.from_dict(old_data)
+
+        # Should load with defaults
+        assert primitive.physical_size == 8.0
+        assert primitive.grid_category == 'outer_grid'
+        assert primitive.resolution_multiplier == 1
+
+        # Should be valid
+        is_valid, errors = primitive.validate()
+        assert is_valid, f"Legacy primitive should be valid: {errors}"
+
+
 if __name__ == "__main__":
     print("Running PrimitiveData tests...")
     print("\nNote: These tests require pytest. Install with: pip install pytest")

@@ -37,6 +37,9 @@ class PrimitiveData:
         neg_y_connector: Connector type for -Y edge
         vertex_groups: Dictionary of vertex groups {name: {'vertices': [...], 'weights': [...]}}
         metadata: Optional metadata (author, version, description, etc.)
+        physical_size: Physical size in meters (8.0 for outer grid, 2.0 for building, etc.)
+        grid_category: Grid system category ('outer_grid', 'building', 'park', etc.)
+        resolution_multiplier: How many cells fit in one outer grid cell (1, 4, 8, etc.)
     """
     name: str
     primitive_type: str
@@ -50,6 +53,16 @@ class PrimitiveData:
     neg_y_connector: str
     vertex_groups: Dict[str, Dict[str, List]] = field(default_factory=dict)
     metadata: Optional[Dict[str, str]] = None
+
+    # NEW: Physical size metadata (Task 1A.1)
+    physical_size: float = 8.0
+    """Physical size of this primitive in meters (8.0=outer grid, 2.0=building, 1.0=park)"""
+
+    grid_category: str = "outer_grid"
+    """Grid system category: 'outer_grid', 'building', 'park', 'road_detail', etc."""
+
+    resolution_multiplier: int = 1
+    """How many of these cells fit in one outer grid cell (1=outer, 4=building 4x4, 8=park 8x8)"""
     
     def validate(self) -> Tuple[bool, List[str]]:
         """
@@ -126,16 +139,33 @@ class PrimitiveData:
             else:
                 vertices = group_data['vertices']
                 weights = group_data['weights']
-                
+
                 if len(vertices) != len(weights):
                     errors.append(f"Vertex group '{group_name}': vertices and weights must have same length")
-                
+
                 for i, vert_idx in enumerate(vertices):
                     if not isinstance(vert_idx, int):
                         errors.append(f"Vertex group '{group_name}', index {i}: must be an integer")
                     elif vert_idx < 0 or vert_idx > max_vert_index:
                         errors.append(f"Vertex group '{group_name}', index {i}: {vert_idx} out of range (0-{max_vert_index})")
-        
+
+        # NEW: Validate sizing metadata (Task 1A.1)
+        if self.physical_size <= 0:
+            errors.append(f"physical_size must be positive, got {self.physical_size}")
+
+        if self.resolution_multiplier < 1:
+            errors.append(f"resolution_multiplier must be >= 1, got {self.resolution_multiplier}")
+
+        # Validate grid category is in allowed list
+        # TODO: make this non-static. perhaps add as metadata in the exported primitives pack
+        VALID_CATEGORIES = ["outer_grid", "building", "park", "road_detail"]
+        if self.grid_category not in VALID_CATEGORIES:
+            errors.append(f"grid_category must be one of {VALID_CATEGORIES}, got '{self.grid_category}'")
+
+        # Validate consistency: outer grid should have resolution=1
+        if self.grid_category == "outer_grid" and self.resolution_multiplier != 1:
+            errors.append(f"Outer grid primitives should have resolution_multiplier=1, got {self.resolution_multiplier}")
+
         return (len(errors) == 0, errors)
     
     def to_dict(self) -> dict:
@@ -159,7 +189,11 @@ class PrimitiveData:
                 'neg_y': self.neg_y_connector,
             },
             'vertex_groups': self.vertex_groups,
-            'metadata': self.metadata or {}
+            'metadata': self.metadata or {},
+            # NEW: Sizing metadata (Task 1A.1)
+            'physical_size': self.physical_size,
+            'grid_category': self.grid_category,
+            'resolution_multiplier': self.resolution_multiplier,
         }
 
     @classmethod
@@ -203,6 +237,10 @@ class PrimitiveData:
             pos_y_connector=pos_y,
             neg_y_connector=neg_y,
             vertex_groups=data.get('vertex_groups', {}),
-            metadata=data.get('metadata', None)
+            metadata=data.get('metadata', None),
+            # NEW: Sizing metadata with defaults for backward compatibility (Task 1A.1)
+            physical_size=data.get('physical_size', 8.0),
+            grid_category=data.get('grid_category', 'outer_grid'),
+            resolution_multiplier=data.get('resolution_multiplier', 1),
         )
 
