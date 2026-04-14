@@ -102,7 +102,7 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
         if obj.primitive_type and obj.primitive_type != 'NONE':
             box = layout.box()
             box.label(text="Connectors:", icon='LINKED')
-            
+
             if has_connectors_assigned(obj):
                 # Display current connectors (read-only)
                 grid = box.grid_flow(columns=2, align=True)
@@ -113,13 +113,33 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
                 col2.prop(obj, "y_pos_connector", text="+Y")
                 col2.prop(obj, "y_neg_connector", text="-Y")
                 grid.enabled = False
-                
-                box.operator("object.wfc_assign_connectors", text="Edit Connectors", icon='EDITMODE_HLT')
+
+                box.operator("object.wfc_assign_connectors", text="Edit Connectors & Metadata", icon='EDITMODE_HLT')
             else:
                 box.label(text="No connectors assigned", icon='INFO')
-                box.operator("object.wfc_assign_connectors", text="Assign Connectors", icon='ADD')
-        
-        # Section 3: Persistence (only if persistence system available)
+                box.operator("object.wfc_assign_connectors", text="Assign Connectors & Metadata", icon='ADD')
+
+        # Section 3: Grid metadata (only if type assigned) — Task 3A.2
+        if obj.primitive_type and obj.primitive_type != 'NONE':
+            box = layout.box()
+            box.label(text="Grid Metadata:", icon='SNAP_GRID')
+
+            # Category + size + resolution (read-only)
+            col = box.column(align=True)
+            col.prop(obj, "grid_category", text="Category")
+            row = col.row(align=True)
+            row.prop(obj, "physical_size", text="Size (m)")
+            row.prop(obj, "resolution_multiplier", text="Res")
+            col.enabled = False
+
+            # Rotation invariant (read-only checkbox + hint)
+            row = box.row()
+            row.prop(obj, "rotation_invariant", text="Rotation Invariant")
+            row.enabled = False
+            if obj.rotation_invariant:
+                box.label(text="1 module generated (not 4)", icon='INFO')
+
+        # Section 4: Persistence (only if persistence system available)
         if PERSISTENCE_AVAILABLE and is_primitive_complete(obj):
             box = layout.box()
             box.label(text="Save/Load:", icon='FILE')

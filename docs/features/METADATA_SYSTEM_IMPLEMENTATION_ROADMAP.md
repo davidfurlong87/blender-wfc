@@ -330,11 +330,14 @@
 - [ ] Test: Pre-population shows correct values on re-open
 
 **Task 3A.2: Update Panel Display** (1 hour)
-- [ ] Modify `OBJECT_PT_WFCPrimitiveBuilderPanel`:
-  - [ ] Show current size metadata (read-only)
-  - [ ] Display grid category
-  - [ ] Display physical size and resolution
-- [ ] Test: Panel shows metadata correctly
+- [x] Modify `addons/blender-wfc/primitive_ui.py`:
+  - [x] Add Section 3 "Grid Metadata" to `OBJECT_PT_WFCPrimitiveBuilderPanel`
+  - [x] Show `grid_category` read-only, gated on primitive type assigned
+  - [x] Show `physical_size` and `resolution_multiplier` side-by-side (read-only)
+  - [x] Show `rotation_invariant` checkbox (read-only)
+  - [x] Show "1 module generated (not 4)" hint when `rotation_invariant` is True
+  - [x] Updated button labels → "Edit/Assign Connectors & Metadata"
+- [x] Test: 14/14 checks pass
 
 ---
 
