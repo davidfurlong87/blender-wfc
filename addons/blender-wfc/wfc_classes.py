@@ -5,7 +5,8 @@ from .wfc_values import module_size
 from mathutils import Vector
 
 class WFCModule:
-    def __init__(self, name, obj_source, module_weight, pos_x, neg_x, pos_y, neg_y):
+    def __init__(self, name, obj_source, module_weight, pos_x, neg_x, pos_y, neg_y,
+                 physical_size=8.0):
         self.name = name
         self.obj_source = obj_source
         self.module_weight = module_weight
@@ -13,6 +14,8 @@ class WFCModule:
         self.neg_x = neg_x
         self.pos_y = pos_y
         self.neg_y = neg_y
+        self.physical_size = physical_size
+        """Physical size of this module in meters — used for grid cell placement"""
         self.pos_x_pairs = []
         self.neg_x_pairs = []
         self.pos_y_pairs = []

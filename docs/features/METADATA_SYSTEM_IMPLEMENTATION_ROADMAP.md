@@ -239,14 +239,18 @@
 #### **Phase 2B: Refactor Module Generation** (2-3 hours)
 
 **Task 2B.1: Update generate_modules_from_primitives()** (2 hours)
-- [ ] Modify `addons/blender-wfc/__init__.py`:
-  - [ ] Read `physical_size` from primitive objects
-  - [ ] Read `grid_category` from primitive objects
-  - [ ] Calculate `offset = physical_size * 2` (dynamic)
-  - [ ] Position modules using `physical_size` not `module_size`
-  - [ ] Store metadata on WFCModule instances
-  - [ ] No references to global `module_size`
-- [ ] Test: Generate modules from primitives with different sizes
+- [x] Modify `addons/blender-wfc/wfc_classes.py`:
+  - [x] Add `physical_size` parameter to `WFCModule.__init__()`
+- [x] Modify `addons/blender-wfc/__init__.py`:
+  - [x] Read `physical_size` from primitive objects
+  - [x] Calculate `offset = physical_size * 2` (dynamic, per primitive)
+  - [x] Position modules using `physical_size` not `module_size`
+  - [x] Store `physical_size` on WFCModule instances
+  - [x] Honor `rotation_invariant` — generate 1 module instead of 4 when True
+  - [x] `build_from_primitive_data()` sets all 4 metadata fields on objects
+  - [x] `build_all_primitives()` uses `physical_size` for display spacing
+  - [x] `module_size` and `primitive_offset_x` imports removed
+- [ ] Test: Generate modules from primitives with different sizes in Blender
 
 **Task 2B.2: Update BlenderWFCAdapter for Dynamic Sizing** (1 hour)
 - [ ] Modify `addons/blender-wfc/wfc_blender_adapter.py`:

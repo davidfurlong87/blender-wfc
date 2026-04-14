@@ -62,7 +62,7 @@ if "bpy" in locals():
 # ============================================================================
 # All imports happen AFTER the reload block to ensure we get the latest versions
 
-from .wfc_values import bl_category_name, CollectionNames, module_size, primitive_offset_x
+from .wfc_values import bl_category_name, CollectionNames
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 # NEW: Connector registry (Task 1B.3)
@@ -215,10 +215,8 @@ all_modules = []
 def generate_modules():
     modules_collection = get_collection_by_name(CollectionNames.Modules.value)
     all_modules.clear()
-    starting_position = Vector((-50, -50, 0))    
-    offset = module_size * 2
+    starting_position = Vector((-50, -50, 0))
     for i, primitive in enumerate(get_all_primitives()):
-        # primitive_data = all_primitives[primitive.name]
         posX_placeholder = primitive.x_pos_connector
         negX_placeholder = primitive.x_neg_connector
         posY_placeholder = primitive.y_pos_connector
@@ -227,14 +225,20 @@ def generate_modules():
         if (primitive.name == PrimitiveModules.Building.value):
             default_weight = 1.05
 
-        for rotation in range(4):
+        # NEW: Read sizing metadata from primitive (Task 2B.1)
+        size = primitive.physical_size
+        offset = size * 2
+        # NEW: Honor rotation_invariant — generate only 1 rotation if True (Task 2B.1)
+        rotation_count = 1 if primitive.rotation_invariant else 4
+
+        for rotation in range(rotation_count):
             module_name = primitive.name + f"_{rotation}"
             module_data = primitive.data.copy()
             module_obj = bpy.data.objects.new(module_name, module_data)
 
-            module_obj.x_pos_connector = posX_placeholder 
+            module_obj.x_pos_connector = posX_placeholder
             module_obj.x_neg_connector = negX_placeholder
-            module_obj.y_pos_connector = posY_placeholder 
+            module_obj.y_pos_connector = posY_placeholder
             module_obj.y_neg_connector = negY_placeholder
             link_object_to_single_collection(module_obj, modules_collection)
 
@@ -244,17 +248,18 @@ def generate_modules():
                     obj_source = module_obj,
                     module_weight=default_weight,
                     pos_x = posX_placeholder,
-                    neg_x = negX_placeholder, 
-                    pos_y = posY_placeholder, 
-                    neg_y = negY_placeholder
+                    neg_x = negX_placeholder,
+                    pos_y = posY_placeholder,
+                    neg_y = negY_placeholder,
+                    physical_size = size
                 )
             )
             posX_placeholder = module_obj.y_neg_connector
             negX_placeholder = module_obj.y_pos_connector
             posY_placeholder = module_obj.x_pos_connector
             negY_placeholder = module_obj.x_neg_connector
-            module_obj.location += starting_position + Vector(((rotation * module_size + (rotation * offset)) , (i*module_size+offset), 0))
-            module_obj.rotation_euler = (0,0,radians(rotation * 90))
+            module_obj.location += starting_position + Vector(((rotation * size + (rotation * offset)), (i * size + offset), 0))
+            module_obj.rotation_euler = (0, 0, radians(rotation * 90))
 
     bpy.ops.object.select_all(action='DESELECT')
     for obj in modules_collection.objects:
@@ -538,10 +543,12 @@ def build_all_primitives():
     primitives = build_default_primitives()
     
     for i, primitive in enumerate(primitives):
+        # NEW: Use primitive's own physical_size for display spacing (Task 2B.1)
+        display_spacing = primitive.physical_size * 2
         build_from_primitive_data(primitive, primitives_collection,
                          location=(
-                             (i * (module_size * 2)) - primitive_offset_x, 
-                             i * (module_size * 0) -10, 
+                             (i * display_spacing) - (primitive.physical_size * 4),
+                             -10,
                              0
                              )
                          )
@@ -571,6 +578,11 @@ def build_from_primitive_data(primitive, primitives_collection, location):
     mesh_obj.x_neg_connector = primitive.neg_x_connector
     mesh_obj.y_pos_connector = primitive.pos_y_connector
     mesh_obj.y_neg_connector = primitive.neg_y_connector
+    # NEW: Set sizing and symmetry metadata (Task 2B.1)
+    mesh_obj.physical_size = primitive.physical_size
+    mesh_obj.grid_category = primitive.grid_category
+    mesh_obj.resolution_multiplier = primitive.resolution_multiplier
+    mesh_obj.rotation_invariant = primitive.rotation_invariant
     apply_vertex_groups_to_object(mesh_obj, primitive.vertex_group_data)
 
 OPERATORS = [
