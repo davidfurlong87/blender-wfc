@@ -118,27 +118,19 @@ class BlenderWFCAdapter:
     def _sockets_match(self, socket_a, socket_b):
         """
         Check if two connector sockets are compatible
-        
-        Extracted from wfc_classes.sockets_match()
-        
+
+        REPLACED: Hardcoded logic replaced with connector registry (Task 1C.1)
+
         Args:
             socket_a: First connector type
             socket_b: Second connector type
-            
+
         Returns:
             True if sockets are compatible
         """
-        # TODO: This logic could be simplified with a compatibility matrix
-        # or by making connectors match themselves by default
-        if socket_a == 'ROAD':
-            return socket_b == 'ROAD'
-        if socket_a == 'BUILDING':
-            return socket_b == 'BUILDING'
-        if socket_a == 'PAVEMENTPOS':
-            return socket_b == 'PAVEMENTNEG'
-        if socket_a == 'PAVEMENTNEG':
-            return socket_b == 'PAVEMENTPOS'
-        return False
+        # NEW: Use connector registry instead of hardcoded logic (Task 1C.1)
+        from .connector_registry import connector_registry
+        return connector_registry.matches(socket_a, socket_b)
 
     def create_grid_from_blender(self, algorithm_modules, grid_width, grid_height):
         """

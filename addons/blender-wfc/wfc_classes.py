@@ -450,26 +450,21 @@ class Primitive:
         self.vertex_group_data = vertex_group_data
 
 def sockets_match(socket_a, socket_b):
-    if (socket_a == 'ROAD'):
-            if (socket_b == 'ROAD'):
-                return True
-            else:
-                return False
-    if (socket_a == 'BUILDING'):
-        if (socket_b == 'BUILDING'):
-            return True
-        else:
-            return False
-    if (socket_a == 'PAVEMENTPOS'):
-        if (socket_b == 'PAVEMENTNEG'):
-            return True
-        else:
-            return False
-    if (socket_a == 'PAVEMENTNEG'):
-        if (socket_b == 'PAVEMENTPOS'):
-            return True
-        else:
-            return False
+    """
+    Check if two connector sockets are compatible
+
+    REPLACED: Hardcoded logic replaced with connector registry (Task 1C.1)
+
+    Args:
+        socket_a: First connector type
+        socket_b: Second connector type
+
+    Returns:
+        True if sockets are compatible, False otherwise
+    """
+    # NEW: Use connector registry instead of hardcoded logic (Task 1C.1)
+    from .connector_registry import connector_registry
+    return connector_registry.matches(socket_a, socket_b)
 
 def build_module_pairs(module, all_modules):
     for axis in Axis:
