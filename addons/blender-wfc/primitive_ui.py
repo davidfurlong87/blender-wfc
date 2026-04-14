@@ -78,8 +78,13 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
         layout = self.layout
         obj = context.object
         
-        # Check if object is valid
-        # TODO: this check skips the 'always available' load from json method below when no object is selected. with no obj here, the user has no way of loading from json
+        # Load from JSON is always available — it creates a new object at the
+        # cursor, so it requires no selection. Must be before the early return.
+        if PERSISTENCE_AVAILABLE:
+            layout.operator("object.wfc_load_primitive", text="Load from JSON", icon='IMPORT')
+            layout.separator()
+
+        # Remaining sections require a valid mesh selection
         if not obj or obj.type != 'MESH':
             layout.label(text="Select a mesh object", icon='ERROR')
             return
@@ -139,17 +144,12 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
             if obj.rotation_invariant:
                 box.label(text="1 module generated (not 4)", icon='INFO')
 
-        # Section 4: Persistence (only if persistence system available)
+        # Section 4: Save (only if primitive is complete)
         if PERSISTENCE_AVAILABLE and is_primitive_complete(obj):
             box = layout.box()
-            box.label(text="Save/Load:", icon='FILE')
+            box.label(text="Save:", icon='FILE')
             box.operator("object.wfc_save_primitive", text="Save to JSON", icon='EXPORT')
-        
-        # Section 4: Load (always available)
-        # TODO: make always available? At the moment a primitive can only be loaded if an object in the scene is se
-        if PERSISTENCE_AVAILABLE:
-            layout.operator("object.wfc_load_primitive", text="Load from JSON", icon='IMPORT')
-        
+
         # Section 5: Legacy (deprecation warning)
         layout.separator()
         box = layout.box()
