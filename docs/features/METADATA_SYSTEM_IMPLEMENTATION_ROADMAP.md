@@ -307,9 +307,10 @@
   - [x] Update `execute()` to write all 4 fields to object properties
 
 *Step 4: Update PrimitiveAdapter*
-- [ ] Modify `addons/blender-wfc/primitive_adapter.py`:
-  - [ ] Extract `rotation_invariant` from `obj.rotation_invariant`
-  - [ ] Apply `rotation_invariant` to created objects
+- [x] Modify `addons/blender-wfc/primitive_adapter.py`:
+  - [x] Extract `rotation_invariant` from `obj.rotation_invariant`
+  - [x] Apply `rotation_invariant` to created objects
+  - [x] Switched existing 3 fields from dict-style to registered-property access
 
 - [ ] Test: Can assign all metadata via dialog
 - [ ] Test: Values persist on object after dialog closes

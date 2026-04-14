@@ -88,9 +88,11 @@ class PrimitiveAdapter:
             vertex_groups = self._extract_vertex_groups_optimized(obj)
 
             # TODO: Add error handling, or some sort of visual feedback which tells the user the property was missing
-            physical_size = obj.get('physical_size', 8.0)  # Default to 8.0 for outer grid
-            grid_category = obj.get('grid_category', 'outer_grid')  # Default to outer_grid
-            resolution_multiplier = obj.get('resolution_multiplier', 1)  # Default to 1
+            # Read from registered Object properties (set via Step 2 / Assign Connectors dialog)
+            physical_size = obj.physical_size
+            grid_category = obj.grid_category
+            resolution_multiplier = obj.resolution_multiplier
+            rotation_invariant = obj.rotation_invariant
 
             # Create metadata
             metadata = {
@@ -114,7 +116,8 @@ class PrimitiveAdapter:
                 metadata=metadata,
                 physical_size=physical_size,
                 grid_category=grid_category,
-                resolution_multiplier=resolution_multiplier
+                resolution_multiplier=resolution_multiplier,
+                rotation_invariant=rotation_invariant
             )
             
             # Validate the extracted data
@@ -220,9 +223,10 @@ class PrimitiveAdapter:
             mesh_obj.y_pos_connector = primitive_data.pos_y_connector
             mesh_obj.y_neg_connector = primitive_data.neg_y_connector
 
-            mesh_obj['physical_size'] = primitive_data.physical_size
-            mesh_obj['grid_category'] = primitive_data.grid_category
-            mesh_obj['resolution_multiplier'] = primitive_data.resolution_multiplier
+            mesh_obj.physical_size = primitive_data.physical_size
+            mesh_obj.grid_category = primitive_data.grid_category
+            mesh_obj.resolution_multiplier = primitive_data.resolution_multiplier
+            mesh_obj.rotation_invariant = primitive_data.rotation_invariant
 
             self._apply_vertex_groups(mesh_obj, primitive_data.vertex_groups)
 
