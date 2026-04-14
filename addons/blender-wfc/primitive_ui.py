@@ -16,8 +16,8 @@ See docs/features/PRIMITIVE_UI_REFACTORING_ANALYSIS.md for details.
 """
 
 import bpy
-from bpy.props import EnumProperty, StringProperty
-from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, PrimitiveDefinition
+from bpy.props import EnumProperty, StringProperty, FloatProperty, IntProperty, BoolProperty
+from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES, PrimitiveDefinition
 from .wfc_values import bl_category_name
 from .primitive_data_actual import *
 
@@ -233,24 +233,87 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         items=get_connector_enum_items
     ) # type: ignore
 
+    # NEW: Sizing and symmetry metadata (Task 3A.1 Step 3)
+    physical_size: FloatProperty(
+        name="Physical Size (m)",
+        description="Physical size of this primitive in meters",
+        default=8.0,
+        min=0.1,
+        soft_max=100.0
+    ) # type: ignore
+
+    grid_category: EnumProperty(
+        name="Grid Category",
+        description="Which grid system this primitive belongs to",
+        items=GRID_CATEGORIES,
+        default='outer_grid'
+    ) # type: ignore
+
+    resolution_multiplier: IntProperty(
+        name="Resolution Multiplier",
+        description="How many of these cells fit in one outer grid cell",
+        default=1,
+        min=1,
+        soft_max=16
+    ) # type: ignore
+
+    rotation_invariant: BoolProperty(
+        name="Rotation Invariant",
+        description="All 4 rotations produce identical geometry — only one module will be generated",
+        default=False
+    ) # type: ignore
+
     def invoke(self, context, event):
         obj = context.object
 
-        # Pre-populate with existing values if they exist
+        # Pre-populate connectors with existing values if assigned
         if obj and has_connectors_assigned(obj):
             self.pos_x = obj.x_pos_connector
             self.neg_x = obj.x_neg_connector
             self.pos_y = obj.y_pos_connector
             self.neg_y = obj.y_neg_connector
 
-        return context.window_manager.invoke_props_dialog(self)
+        # NEW: Pre-populate sizing and symmetry metadata (Task 3A.1 Step 3)
+        if obj:
+            self.physical_size = obj.physical_size
+            self.grid_category = obj.grid_category
+            self.resolution_multiplier = obj.resolution_multiplier
+            self.rotation_invariant = obj.rotation_invariant
+
+        return context.window_manager.invoke_props_dialog(self, width=400)
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "pos_x")
-        layout.prop(self, "neg_x")
-        layout.prop(self, "pos_y")
-        layout.prop(self, "neg_y")
+
+        # Section 1: Grid metadata
+        box = layout.box()
+        box.label(text="Grid Metadata:", icon='SNAP_GRID')
+        box.prop(self, "grid_category")
+        row = box.row(align=True)
+        row.prop(self, "physical_size")
+        row.prop(self, "resolution_multiplier")
+        # Auto-calculate helper: show what physical_size implies relative to 8m outer grid
+        if self.resolution_multiplier > 1:
+            implied = 8.0 / self.resolution_multiplier
+            box.label(
+                text=f"8m outer cell ÷ {self.resolution_multiplier} = {implied:.2f}m per cell",
+                icon='INFO'
+            )
+
+        # Section 2: Symmetry
+        box = layout.box()
+        box.label(text="Symmetry:", icon='MOD_MIRROR')
+        box.prop(self, "rotation_invariant")
+        if self.rotation_invariant:
+            box.label(text="Only 1 module will be generated (not 4)", icon='INFO')
+
+        # Section 3: Connectors
+        box = layout.box()
+        box.label(text="Connectors:", icon='LINKED')
+        box.prop(self, "pos_x")
+        box.prop(self, "neg_x")
+        box.prop(self, "pos_y")
+        box.prop(self, "neg_y")
 
     def execute(self, context):
         obj = context.object
@@ -273,7 +336,13 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         obj.y_pos_connector = self.pos_y
         obj.y_neg_connector = self.neg_y
 
-        self.report({'INFO'}, f"Assigned connectors to {obj.name}")
+        # NEW: Assign sizing and symmetry metadata (Task 3A.1 Step 3)
+        obj.physical_size = self.physical_size
+        obj.grid_category = self.grid_category
+        obj.resolution_multiplier = self.resolution_multiplier
+        obj.rotation_invariant = self.rotation_invariant
+
+        self.report({'INFO'}, f"Assigned connectors and metadata to {obj.name}")
         context.view_layer.update()
         return {'FINISHED'}
 

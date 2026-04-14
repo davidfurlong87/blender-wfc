@@ -295,16 +295,16 @@
   - [x] Delete all 4 new properties
 
 *Step 3: Update OBJECT_OT_WFCAssignConnectors operator*
-- [ ] Modify `addons/blender-wfc/primitive_ui.py`:
-  - [ ] Add operator properties:
-    - [ ] `physical_size: FloatProperty`
-    - [ ] `grid_category: EnumProperty` (outer_grid, building, park, road_detail)
-    - [ ] `resolution_multiplier: IntProperty`
-    - [ ] `rotation_invariant: BoolProperty`
-  - [ ] Update `invoke()` to pre-populate all 4 fields from object
-  - [ ] Update `draw()` with sizing + symmetry section
-  - [ ] Add auto-calculate helper (physical_size = 8.0 / resolution_multiplier)
-  - [ ] Update `execute()` to write all 4 fields to object properties
+- [x] Modify `addons/blender-wfc/primitive_ui.py`:
+  - [x] Add operator properties:
+    - [x] `physical_size: FloatProperty`
+    - [x] `grid_category: EnumProperty` (outer_grid, building, park, road_detail)
+    - [x] `resolution_multiplier: IntProperty`
+    - [x] `rotation_invariant: BoolProperty`
+  - [x] Update `invoke()` to pre-populate all 4 fields from object
+  - [x] Update `draw()` with sizing + symmetry section
+  - [x] Add auto-calculate helper (physical_size = 8.0 / resolution_multiplier)
+  - [x] Update `execute()` to write all 4 fields to object properties
 
 *Step 4: Update PrimitiveAdapter*
 - [ ] Modify `addons/blender-wfc/primitive_adapter.py`:
