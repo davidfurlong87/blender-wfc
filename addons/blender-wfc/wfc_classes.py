@@ -1,7 +1,6 @@
 import bpy
 from enum import Enum
 from .collectiontools.collection_creation import *
-from .wfc_values import module_size
 from mathutils import Vector
 
 class WFCModule:
@@ -373,11 +372,16 @@ class WFCPlot:
         self.parent_cell = parent_cell
         self.is_processed = False
 
-    def get_world_bounds(self):
-        """Convert local bounds to world coordinates"""
-        cell_world_pos = Vector((self.parent_cell.posX * module_size, 
-                                self.parent_cell.posY * module_size, 0))
-        return [(cell_world_pos.x + bound[0], cell_world_pos.y + bound[1]) 
+    def get_world_bounds(self, cell_size: float = 8.0):
+        """Convert local bounds to world coordinates.
+
+        Args:
+            cell_size: Physical size of a grid cell in meters. Defaults to 8.0
+                       (outer grid). Pass module.physical_size for accuracy.
+        """
+        cell_world_pos = Vector((self.parent_cell.posX * cell_size,
+                                 self.parent_cell.posY * cell_size, 0))
+        return [(cell_world_pos.x + bound[0], cell_world_pos.y + bound[1])
                 for bound in self.local_bounds]
 
 class BuildingPlot(WFCPlot):

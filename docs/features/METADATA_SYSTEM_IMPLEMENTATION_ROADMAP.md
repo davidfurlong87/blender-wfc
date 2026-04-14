@@ -253,14 +253,21 @@
 - [ ] Test: Generate modules from primitives with different sizes in Blender
 
 **Task 2B.2: Update BlenderWFCAdapter for Dynamic Sizing** (1 hour)
-- [ ] Modify `addons/blender-wfc/wfc_blender_adapter.py`:
-  - [ ] Update `create_blender_object_for_cell()`:
-    - [ ] Read `physical_size` from module
-    - [ ] Calculate placement: `cell.x * physical_size`
-  - [ ] Update `create_blender_visualization_grid()`:
-    - [ ] Use module's `physical_size` for grid spacing
-  - [ ] Remove all `module_size` references
-- [ ] Test: Grid cells sized correctly
+- [x] Modify `addons/blender-wfc/wfc_blender_adapter.py`:
+  - [x] Add `_get_cell_size()` helper — reads from first module, fallback 8.0
+  - [x] Update `create_blender_visualization_grid()` → `_get_cell_size()`
+  - [x] Update `create_blender_object_for_cell()` → `wfc_module.physical_size`
+  - [x] Update building plot coordinate conversion → `blender_module.physical_size`
+  - [x] Update `_calculate_island_grid_size()` → `_get_cell_size()`
+  - [x] Remove `module_size` import
+- [x] Modify `addons/blender-wfc/wfc_classes.py`:
+  - [x] Update `WFCPlot.get_world_bounds()` → `cell_size=8.0` parameter
+  - [x] Remove `module_size` import
+- [x] Modify `addons/blender-wfc/wfc_plots.py`:
+  - [x] Building plot faces and world pos → `cell_size = module.physical_size`
+  - [x] Remove `module_size` import
+- [x] Zero live `module_size` references remaining (definition stays in `wfc_values.py`)
+- [ ] Test: Grid cells sized correctly (Blender)
 
 **Task 2B.3: Deprecate wfc_values.py Globals** (30 min)
 - [ ] Modify `addons/blender-wfc/wfc_values.py`:

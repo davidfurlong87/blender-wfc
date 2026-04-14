@@ -22,7 +22,7 @@ from .collectiontools.collection_creation import (
     link_object_to_single_collection,
     get_collection_by_name
 )
-from .wfc_values import module_size, CollectionNames
+from .wfc_values import CollectionNames
 from mathutils import Vector
 
 
@@ -74,6 +74,20 @@ class BlenderWFCAdapter:
 
         return algorithm_modules
     
+    def _get_cell_size(self) -> float:
+        """
+        Get the physical cell size in meters from the loaded modules.
+
+        Used wherever no specific module is in scope but a cell size is needed
+        (e.g. grid visualization, island size calculation).
+
+        Returns:
+            physical_size of the first available module, or 8.0 as fallback
+        """
+        if self.blender_module_map:
+            return next(iter(self.blender_module_map.values())).physical_size
+        return 8.0  # Default outer grid size
+
     def build_algorithm_module_pairs(self, algorithm_modules):
         """
         Build module pair relationships for pure algorithm modules
@@ -168,7 +182,7 @@ class BlenderWFCAdapter:
             all_modules_count: Total number of modules (for initial entropy display)
         """
         grid_collection = get_collection_by_name(CollectionNames.Grid.value)
-        debug_mesh_size = module_size
+        debug_mesh_size = self._get_cell_size()
 
         for x in range(grid_width):
             for y in range(grid_height):
@@ -213,8 +227,8 @@ class BlenderWFCAdapter:
         wfc_module = self.blender_module_map[selected_module.id]
         source_obj = wfc_module.obj_source
 
-        # Calculate placement location
-        placement_location = (cell.x * module_size, cell.y * module_size, 0)
+        # Calculate placement location using this module's physical size
+        placement_location = (cell.x * wfc_module.physical_size, cell.y * wfc_module.physical_size, 0)
 
         # Create instance of the module
         collapsed_cell_obj = duplicate_and_move_and_return(source_obj, placement_location)
@@ -504,11 +518,11 @@ class BlenderWFCAdapter:
                     vertex_group_name
                 )
 
-                # Convert to world coordinates and add to list
+                # Convert to world coordinates using this module's physical size
                 for face_data in plot_faces:
                     world_pos = Vector((
-                        coords[0] * module_size + face_data['center_relative'].x,
-                        coords[1] * module_size + face_data['center_relative'].y,
+                        coords[0] * blender_module.physical_size + face_data['center_relative'].x,
+                        coords[1] * blender_module.physical_size + face_data['center_relative'].y,
                         0
                     ))
 
@@ -765,8 +779,9 @@ class BlenderWFCAdapter:
         height = bounds[3] - bounds[1]
 
         # Convert to outer cell count
-        grid_width = max(1, int(width / module_size))
-        grid_height = max(1, int(height / module_size))
+        cell_size = self._get_cell_size()
+        grid_width = max(1, int(width / cell_size))
+        grid_height = max(1, int(height / cell_size))
 
         return (grid_width, grid_height)
 

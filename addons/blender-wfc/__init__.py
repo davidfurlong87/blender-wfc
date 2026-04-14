@@ -543,11 +543,14 @@ def build_all_primitives():
     primitives = build_default_primitives()
     
     for i, primitive in enumerate(primitives):
-        # NEW: Use primitive's own physical_size for display spacing (Task 2B.1)
-        display_spacing = primitive.physical_size * 2
+        # Use physical_size if available (PrimitiveData), fall back to 8.0 for
+        # legacy Primitive objects from build_default_primitives() which predate
+        # the metadata system.
+        size = getattr(primitive, 'physical_size', 8.0)
+        display_spacing = size * 2
         build_from_primitive_data(primitive, primitives_collection,
                          location=(
-                             (i * display_spacing) - (primitive.physical_size * 4),
+                             (i * display_spacing) - (size * 4),
                              -10,
                              0
                              )
@@ -578,11 +581,12 @@ def build_from_primitive_data(primitive, primitives_collection, location):
     mesh_obj.x_neg_connector = primitive.neg_x_connector
     mesh_obj.y_pos_connector = primitive.pos_y_connector
     mesh_obj.y_neg_connector = primitive.neg_y_connector
-    # NEW: Set sizing and symmetry metadata (Task 2B.1)
-    mesh_obj.physical_size = primitive.physical_size
-    mesh_obj.grid_category = primitive.grid_category
-    mesh_obj.resolution_multiplier = primitive.resolution_multiplier
-    mesh_obj.rotation_invariant = primitive.rotation_invariant
+    # Set sizing and symmetry metadata. Use getattr fallbacks for legacy
+    # Primitive objects (from build_default_primitives) that predate PrimitiveData.
+    mesh_obj.physical_size = getattr(primitive, 'physical_size', 8.0)
+    mesh_obj.grid_category = getattr(primitive, 'grid_category', 'outer_grid')
+    mesh_obj.resolution_multiplier = getattr(primitive, 'resolution_multiplier', 1)
+    mesh_obj.rotation_invariant = getattr(primitive, 'rotation_invariant', False)
     apply_vertex_groups_to_object(mesh_obj, primitive.vertex_group_data)
 
 OPERATORS = [

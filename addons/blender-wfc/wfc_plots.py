@@ -1,19 +1,20 @@
 import bpy
 from mathutils import Vector
 from .wfc_classes import WFCCell, WFCPlot, BuildingPlot, WFCPlotGroup, BuildingPlotGroup
-from .wfc_values import module_size
-
 def extract_building_plots_from_cell(cell):
     """Extract building plot data from a collapsed WFC cell"""
     module = cell.return_collapsed_module()
     plots = []
-    
+
+    # Read physical cell size from the module (Task 2B.2)
+    cell_size = module.physical_size if module else 8.0
+
     # Define building plot areas for each primitive type
     # These would be based on your primitive designs
     building_plot_definitions = {
         'BUILDING': [
             # Example: entire module is a building plot
-            [(0, 0), (module_size, 0), (module_size, module_size), (0, module_size)]
+            [(0, 0), (cell_size, 0), (cell_size, cell_size), (0, cell_size)]
         ],
         'ROAD_STRAIGHT': [
             # Example: no building plots on roads
@@ -33,7 +34,7 @@ def extract_building_plots_from_cell(cell):
     
     if primitive_type in building_plot_definitions:
         for plot_bounds in building_plot_definitions[primitive_type]:
-            world_pos = Vector((cell.posX * module_size, cell.posY * module_size, 0))
+            world_pos = Vector((cell.posX * cell_size, cell.posY * cell_size, 0))
             plot = BuildingPlot(world_pos, plot_bounds, cell)
             plots.append(plot)
     
