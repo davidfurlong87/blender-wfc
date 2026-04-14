@@ -42,6 +42,34 @@ Use primitive.physical_size (or obj.physical_size) in all production code.
 """
 
 
+def calculate_cell_size(physical_size: float, resolution_multiplier: int) -> float:
+    """Calculate the world-space size of a single grid cell in meters.
+
+    For the outer grid (resolution_multiplier=1), cell_size == physical_size.
+    For sub-grids the primitive is divided evenly, so each cell is smaller.
+
+    Args:
+        physical_size: The primitive's physical_size in meters
+        resolution_multiplier: How many cells span one outer grid cell (>= 1)
+
+    Returns:
+        Size of one cell in meters
+
+    Raises:
+        ValueError: If resolution_multiplier is less than 1
+
+    Examples:
+        calculate_cell_size(8.0, 1) == 8.0   # outer grid
+        calculate_cell_size(8.0, 4) == 2.0   # building grid
+        calculate_cell_size(8.0, 8) == 1.0   # park grid
+    """
+    if resolution_multiplier < 1:
+        raise ValueError(
+            f"resolution_multiplier must be >= 1, got {resolution_multiplier}"
+        )
+    return physical_size / resolution_multiplier
+
+
 # ── DEPRECATED ────────────────────────────────────────────────────────────────
 # Retained as fallback constants for any code not yet migrated.
 # No new code should import these — use primitive.physical_size or

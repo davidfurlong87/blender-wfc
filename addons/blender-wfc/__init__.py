@@ -198,6 +198,25 @@ class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
 def get_all_primitives():
     return get_all_objects_from_collection(CollectionNames.Primitives.value)
 
+
+def get_primitives_by_category(category: str):
+    """Return all primitive objects belonging to the given grid category.
+
+    Filters the full primitives collection by the grid_category Object property.
+    Use GridCategory constants from wfc_values to avoid bare string literals.
+
+    Args:
+        category: Grid category string, e.g. GridCategory.BUILDING
+
+    Returns:
+        List of bpy.types.Object whose grid_category matches
+
+    Example:
+        building_prims = get_primitives_by_category(GridCategory.BUILDING)
+    """
+    return [p for p in get_all_primitives() if p.grid_category == category]
+
+
 class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
     """Build Modules from Primitive Data"""
     bl_idname = "object.build_wfc_modules"

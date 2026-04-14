@@ -344,16 +344,23 @@
 #### **Phase 3B: UI Polish & Fixes** (1 hour)
 
 **Task 3B.1: Fix Load Button Availability** (30 min)
-- [ ] Modify `primitive_ui.py`:
-  - [ ] Move "Load from JSON" button before object check
-  - [ ] Always available regardless of selection
-- [ ] Test: Can load primitive without selecting object
+- [x] Modify `addons/blender-wfc/primitive_ui.py`:
+  - [x] Move "Load from JSON" button before the early return guard
+  - [x] Add separator after load button for visual clarity
+  - [x] Remove TODO comment (issue now resolved)
+  - [x] Remove duplicate "Section 4: Load" block
+  - [x] Fix section numbering (4=Save, 5=Legacy)
+- [x] Test: Load button visible with no object selected
 
 **Task 3B.2: Add Helper Functions** (30 min)
-- [ ] Add utility functions:
-  - [ ] `get_primitives_by_category(category)` - Filter primitives
-  - [ ] `calculate_cell_size(physical_size, resolution)` - Helper
-- [ ] Test: Helper functions work correctly
+- [x] Add to `addons/blender-wfc/__init__.py`:
+  - [x] `get_primitives_by_category(category)` — filters scene primitives by grid_category
+- [x] Add to `addons/blender-wfc/wfc_values.py`:
+  - [x] `calculate_cell_size(physical_size, resolution_multiplier)` — pure math helper
+  - [x] Returns `physical_size / resolution_multiplier`
+  - [x] Raises `ValueError` for resolution < 1
+  - [x] Verified consistent with `DEFAULT_GRID_SIZES` reference values
+- [x] Test: 21/21 checks pass
 
 ---
 
