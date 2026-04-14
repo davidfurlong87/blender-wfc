@@ -270,12 +270,14 @@
 - [ ] Test: Grid cells sized correctly (Blender)
 
 **Task 2B.3: Deprecate wfc_values.py Globals** (30 min)
-- [ ] Modify `addons/blender-wfc/wfc_values.py`:
-  - [ ] Add deprecation warnings to `module_size`
-  - [ ] Add deprecation warnings to `primitive_offset_x`
-  - [ ] Create `GridCategory` class
-  - [ ] Create `DEFAULT_GRID_SIZES` dict (reference only)
-- [ ] Test: Code still runs with warnings
+- [x] Modify `addons/blender-wfc/wfc_values.py`:
+  - [x] Remove unused `import bpy`
+  - [x] Add `GridCategory` class with string constants
+  - [x] Create `DEFAULT_GRID_SIZES` dict (outer_grid=8.0, building=2.0, park=1.0, road_detail=4.0)
+  - [x] Mark `module_size` and `primitive_offset_x` as DEPRECATED with comments
+  - [x] `module_size` derived from `DEFAULT_GRID_SIZES` (single source of truth)
+  - [x] Verified sync with `VALID_CATEGORIES` and `GRID_CATEGORIES` in other files
+- [x] Test: 28/28 checks pass
 
 ---
 
