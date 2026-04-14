@@ -462,7 +462,6 @@ def sockets_match(socket_a, socket_b):
     Returns:
         True if sockets are compatible, False otherwise
     """
-    # NEW: Use connector registry instead of hardcoded logic (Task 1C.1)
     from .connector_registry import connector_registry
     return connector_registry.matches(socket_a, socket_b)
 

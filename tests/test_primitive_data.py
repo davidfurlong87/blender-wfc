@@ -542,6 +542,107 @@ class TestPrimitiveSizingMetadata:
         assert is_valid, f"Legacy primitive should be valid: {errors}"
 
 
+class TestRotationInvariant:
+    """Test rotation_invariant field (Task 3A.1 Step 1)"""
+
+    def _make_primitive(self, **kwargs):
+        """Helper to create a minimal valid primitive"""
+        defaults = dict(
+            name="Test",
+            primitive_type="ROAD",
+            verts=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            mat_indices=[0],
+            material_names=["Material"],
+            pos_x_connector="ROAD",
+            neg_x_connector="ROAD",
+            pos_y_connector="ROAD",
+            neg_y_connector="ROAD",
+        )
+        defaults.update(kwargs)
+        return PrimitiveData(**defaults)
+
+    def test_default_is_false(self):
+        """rotation_invariant defaults to False"""
+        prim = self._make_primitive()
+        assert prim.rotation_invariant == False
+
+    def test_can_set_true(self):
+        """rotation_invariant can be explicitly set to True"""
+        prim = self._make_primitive(rotation_invariant=True)
+        assert prim.rotation_invariant == True
+
+    def test_false_is_valid(self):
+        """rotation_invariant=False passes validation"""
+        prim = self._make_primitive(rotation_invariant=False)
+        is_valid, errors = prim.validate()
+        assert is_valid, f"Expected valid: {errors}"
+
+    def test_true_is_valid(self):
+        """rotation_invariant=True passes validation"""
+        prim = self._make_primitive(rotation_invariant=True)
+        is_valid, errors = prim.validate()
+        assert is_valid, f"Expected valid: {errors}"
+
+    def test_non_bool_fails_validation(self):
+        """rotation_invariant with a non-bool type fails validation"""
+        prim = self._make_primitive(rotation_invariant="yes")  # type: ignore
+        is_valid, errors = prim.validate()
+        assert not is_valid
+        assert any("rotation_invariant" in err for err in errors)
+
+    def test_serialized_to_dict(self):
+        """rotation_invariant is included in to_dict() output"""
+        prim = self._make_primitive(rotation_invariant=True)
+        data = prim.to_dict()
+        assert 'rotation_invariant' in data
+        assert data['rotation_invariant'] == True
+
+    def test_deserialized_from_dict(self):
+        """rotation_invariant is restored from from_dict()"""
+        data = {
+            'name': 'Test',
+            'primitive_type': 'ROAD',
+            'verts': [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]],
+            'faces': [[0, 1, 2]],
+            'mat_indices': [0],
+            'material_names': ['Material'],
+            'connectors': {
+                'pos_x': 'ROAD', 'neg_x': 'ROAD',
+                'pos_y': 'ROAD', 'neg_y': 'ROAD'
+            },
+            'rotation_invariant': True,
+        }
+        prim = PrimitiveData.from_dict(data)
+        assert prim.rotation_invariant == True
+
+    def test_round_trip(self):
+        """rotation_invariant survives to_dict() → from_dict() round-trip"""
+        original = self._make_primitive(rotation_invariant=True)
+        restored = PrimitiveData.from_dict(original.to_dict())
+        assert restored.rotation_invariant == original.rotation_invariant
+
+    def test_backward_compatibility_defaults_false(self):
+        """Old JSON without rotation_invariant loads with default False"""
+        old_data = {
+            'name': 'Legacy',
+            'primitive_type': 'ROAD',
+            'verts': [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]],
+            'faces': [[0, 1, 2]],
+            'mat_indices': [0],
+            'material_names': ['Material'],
+            'connectors': {
+                'pos_x': 'ROAD', 'neg_x': 'ROAD',
+                'pos_y': 'ROAD', 'neg_y': 'ROAD'
+            }
+            # NOTE: No rotation_invariant field
+        }
+        prim = PrimitiveData.from_dict(old_data)
+        assert prim.rotation_invariant == False
+        is_valid, errors = prim.validate()
+        assert is_valid, f"Legacy primitive should be valid: {errors}"
+
+
 if __name__ == "__main__":
     print("Running PrimitiveData tests...")
     print("\nNote: These tests require pytest. Install with: pip install pytest")

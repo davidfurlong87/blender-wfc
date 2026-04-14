@@ -63,7 +63,7 @@ if "bpy" in locals():
 # All imports happen AFTER the reload block to ensure we get the latest versions
 
 from .wfc_values import bl_category_name, CollectionNames, module_size, primitive_offset_x
-from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items
+from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 # NEW: Connector registry (Task 1B.3)
 from .connector_registry import connector_registry
@@ -673,6 +673,34 @@ def register():
         description="Classification of object",
         items=connector_items
     )
+
+    # NEW: Primitive sizing and symmetry metadata (Task 3A.1 Step 2)
+    bpy.types.Object.physical_size = FloatProperty(
+        name="Physical Size (m)",
+        description="Physical size of this primitive in meters",
+        default=8.0,
+        min=0.1,
+        soft_max=100.0
+    )
+    bpy.types.Object.grid_category = EnumProperty(
+        name="Grid Category",
+        description="Which grid system this primitive belongs to",
+        items=GRID_CATEGORIES,
+        default='outer_grid'
+    )
+    bpy.types.Object.resolution_multiplier = IntProperty(
+        name="Resolution Multiplier",
+        description="How many of these cells fit in one outer grid cell",
+        default=1,
+        min=1,
+        soft_max=16
+    )
+    bpy.types.Object.rotation_invariant = BoolProperty(
+        name="Rotation Invariant",
+        description="All 4 rotations produce identical geometry — only one module will be generated",
+        default=False
+    )
+
     def update_remaining_modules(self, context):
         context.view_layer.update()
     
@@ -694,6 +722,11 @@ def unregister():
     del bpy.types.Object.y_pos_connector
     del bpy.types.Object.y_neg_connector
     del bpy.types.Object.remaining_modules
+    # NEW: Primitive sizing and symmetry metadata (Task 3A.1 Step 2)
+    del bpy.types.Object.physical_size
+    del bpy.types.Object.grid_category
+    del bpy.types.Object.resolution_multiplier
+    del bpy.types.Object.rotation_invariant
 
 if __name__ == "__main__":
     register()

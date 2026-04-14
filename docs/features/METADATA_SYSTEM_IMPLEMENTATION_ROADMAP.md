@@ -178,25 +178,25 @@
 - [x] Add file format versioning
 
 **Task 1B.3: Load Registry on Startup** (30 min)
-- [ ] Modify `addons/blender-wfc/__init__.py`:
-  - [ ] Import connector_registry
-  - [ ] Load `data/connectors.json` in `register()`
-  - [ ] Add error handling for missing file
-- [ ] Test: Registry loads on addon enable
+- [x] Modify `addons/blender-wfc/__init__.py`:
+  - [x] Import connector_registry
+  - [x] Load `data/connectors.json` in `register()`
+  - [x] Add error handling for missing file
+- [x] Test: Registry loads on addon enable
 
 ---
 
 #### **Phase 1C: Replace Hardcoded Socket Matching** (1-2 hours)
 
 **Task 1C.1: Update Core Matching Function** (30 min)
-- [ ] Modify `addons/blender-wfc/wfc_classes.py`:
-  - [ ] Replace `sockets_match()` body:
+- [x] Modify `addons/blender-wfc/wfc_classes.py`:
+  - [x] Replace `sockets_match()` body:
     ```python
     def sockets_match(socket_a, socket_b):
         from .connector_registry import connector_registry
         return connector_registry.matches(socket_a, socket_b)
     ```
-  - [ ] Add deprecation comment
+  - [x] Add deprecation comment
 
 **Task 1C.2: Update Adapter Matching** (30 min)
 - [ ] Modify `addons/blender-wfc/wfc_blender_adapter.py`:
@@ -220,10 +220,10 @@
 #### **Phase 2A: Update Enums & Properties** (1-2 hours)
 
 **Task 2A.1: Make Connector Enums Dynamic** (1 hour)
-- [ ] Modify `addons/blender-wfc/wfc_enums.py`:
-  - [ ] Create `get_connector_enum_items()` function
-  - [ ] Generate `CONNECTORS` from registry
-  - [ ] Create `get_connector_items_for_category(category)` for filtering
+- [x] Modify `addons/blender-wfc/wfc_enums.py`:
+  - [x] Create `get_connector_enum_items()` function
+  - [x] Generate `CONNECTORS` from registry
+  - [x] Create `get_connector_items_for_category(category)` for filtering
 - [ ] Test: CONNECTORS list contains all registry items
 
 **Task 2A.2: Update Property Registration** (1 hour)
@@ -276,17 +276,44 @@
 
 #### **Phase 3A: Update Primitive UI** (2-3 hours)
 
-**Task 3A.1: Add Sizing to Assign Connectors Operator** (2 hours)
+**Task 3A.1: Add Sizing & Symmetry Metadata to Primitive Operator** (3 hours)
+
+*Step 1: Extend PrimitiveData with rotation_invariant field*
+- [x] Modify `addons/blender-wfc/primitive_data_core.py`:
+  - [x] Add `rotation_invariant: bool = False`
+  - [x] Update `validate()` (type check)
+  - [x] Update `to_dict()` / `from_dict()` with backward-compatible default
+- [x] Update `tests/test_primitive_data.py` with new field tests
+
+*Step 2: Register new Object properties in __init__.py*
+- [x] Modify `addons/blender-wfc/__init__.py` `register()`:
+  - [x] `bpy.types.Object.physical_size` as `FloatProperty`
+  - [x] `bpy.types.Object.grid_category` as `EnumProperty`
+  - [x] `bpy.types.Object.resolution_multiplier` as `IntProperty`
+  - [x] `bpy.types.Object.rotation_invariant` as `BoolProperty`
+- [x] Modify `unregister()`:
+  - [x] Delete all 4 new properties
+
+*Step 3: Update OBJECT_OT_WFCAssignConnectors operator*
 - [ ] Modify `addons/blender-wfc/primitive_ui.py`:
-  - [ ] Add to `OBJECT_OT_WFCAssignConnectors`:
+  - [ ] Add operator properties:
     - [ ] `physical_size: FloatProperty`
-    - [ ] `grid_category: EnumProperty`
+    - [ ] `grid_category: EnumProperty` (outer_grid, building, park, road_detail)
     - [ ] `resolution_multiplier: IntProperty`
-  - [ ] Update `invoke()` to pre-populate from object
-  - [ ] Update `draw()` with size metadata section
-  - [ ] Add auto-calculate helper display
-  - [ ] Update `execute()` to set object properties
-- [ ] Test: Can assign metadata via dialog
+    - [ ] `rotation_invariant: BoolProperty`
+  - [ ] Update `invoke()` to pre-populate all 4 fields from object
+  - [ ] Update `draw()` with sizing + symmetry section
+  - [ ] Add auto-calculate helper (physical_size = 8.0 / resolution_multiplier)
+  - [ ] Update `execute()` to write all 4 fields to object properties
+
+*Step 4: Update PrimitiveAdapter*
+- [ ] Modify `addons/blender-wfc/primitive_adapter.py`:
+  - [ ] Extract `rotation_invariant` from `obj.rotation_invariant`
+  - [ ] Apply `rotation_invariant` to created objects
+
+- [ ] Test: Can assign all metadata via dialog
+- [ ] Test: Values persist on object after dialog closes
+- [ ] Test: Pre-population shows correct values on re-open
 
 **Task 3A.2: Update Panel Display** (1 hour)
 - [ ] Modify `OBJECT_PT_WFCPrimitiveBuilderPanel`:

@@ -54,6 +54,16 @@ def get_connector_enum_items(self=None, context=None):
     # Fallback: return the hardcoded defaults
     return CONNECTORS
 
+GRID_CATEGORIES = [
+    ('outer_grid',   "Outer Grid",   "Main city layout grid (default 8m cells)"),
+    ('building',     "Building",     "Interior building grid (default 2m cells)"),
+    ('park',         "Park",         "Park detail grid (default 1m cells)"),
+    ('road_detail',  "Road Detail",  "Road detail grid (default 4m cells)"),
+]
+"""Grid category enum items for Blender EnumProperty.
+Must stay in sync with VALID_CATEGORIES in primitive_data_core.py."""
+
+
 class PrimitiveModules(Enum):
     Building = "Building_Primitive"
     Pavement = "Pavement_Primitive"

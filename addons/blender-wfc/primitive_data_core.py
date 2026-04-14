@@ -40,6 +40,7 @@ class PrimitiveData:
         physical_size: Physical size in meters (8.0 for outer grid, 2.0 for building, etc.)
         grid_category: Grid system category ('outer_grid', 'building', 'park', etc.)
         resolution_multiplier: How many cells fit in one outer grid cell (1, 4, 8, etc.)
+        rotation_invariant: If True, all 4 rotations are identical — only one module generated
     """
     name: str
     primitive_type: str
@@ -63,6 +64,9 @@ class PrimitiveData:
 
     resolution_multiplier: int = 1
     """How many of these cells fit in one outer grid cell (1=outer, 4=building 4x4, 8=park 8x8)"""
+
+    rotation_invariant: bool = False
+    """If True, all 4 rotations produce identical geometry — only one module will be generated"""
     
     def validate(self) -> Tuple[bool, List[str]]:
         """
@@ -166,6 +170,10 @@ class PrimitiveData:
         if self.grid_category == "outer_grid" and self.resolution_multiplier != 1:
             errors.append(f"Outer grid primitives should have resolution_multiplier=1, got {self.resolution_multiplier}")
 
+        # Validate rotation_invariant
+        if not isinstance(self.rotation_invariant, bool):
+            errors.append(f"rotation_invariant must be a bool, got {type(self.rotation_invariant).__name__}")
+
         return (len(errors) == 0, errors)
     
     def to_dict(self) -> dict:
@@ -194,6 +202,8 @@ class PrimitiveData:
             'physical_size': self.physical_size,
             'grid_category': self.grid_category,
             'resolution_multiplier': self.resolution_multiplier,
+            # NEW: Symmetry metadata (Task 3A.1)
+            'rotation_invariant': self.rotation_invariant,
         }
 
     @classmethod
@@ -242,5 +252,7 @@ class PrimitiveData:
             physical_size=data.get('physical_size', 8.0),
             grid_category=data.get('grid_category', 'outer_grid'),
             resolution_multiplier=data.get('resolution_multiplier', 1),
+            # NEW: Symmetry metadata with default for backward compatibility (Task 3A.1)
+            rotation_invariant=data.get('rotation_invariant', False),
         )
 
