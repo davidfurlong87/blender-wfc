@@ -21,6 +21,9 @@ if "bpy" in locals():
         importlib.reload(wfc_values)
     if "wfc_enums" in locals():
         importlib.reload(wfc_enums)
+    # NEW: Connector registry (Task 1B.3)
+    if "connector_registry" in locals():
+        importlib.reload(connector_registry)
 
     # Level 1: Modules that depend only on Level 0
     if "wfc_materials" in locals():
@@ -62,6 +65,8 @@ if "bpy" in locals():
 from .wfc_values import bl_category_name, CollectionNames, module_size, primitive_offset_x
 from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
+# NEW: Connector registry (Task 1B.3)
+from .connector_registry import connector_registry
 from .collectiontools.collection_creation import *
 from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
 from .primitive_generation_tools import *
@@ -594,7 +599,48 @@ TYPE_CLASSES = []
 REGISTER_CLASSES = OPERATORS + PANELS + TYPE_CLASSES
 
 
+def _load_connector_registry():
+    """
+    Load connector registry from JSON file on addon startup (Task 1B.3)
+
+    Loads connectors from data/connectors.json. If file is missing or corrupt,
+    falls back to default connectors defined in connector_registry.py.
+    """
+    from pathlib import Path
+
+    # Get path to connectors.json (same directory as this file)
+    addon_dir = Path(__file__).parent
+    connectors_file = addon_dir / 'data' / 'connectors.json'
+
+    print(f"[WFC] Loading connector registry from: {connectors_file}")
+
+    if connectors_file.exists():
+        try:
+            success = connector_registry.load_from_file(str(connectors_file))
+            if success:
+                connector_count = len(connector_registry.connectors)
+                connector_names = ', '.join(list(connector_registry.connectors.keys())[:5])
+                if connector_count > 5:
+                    connector_names += f', ... ({connector_count - 5} more)'
+                print(f"[WFC] ✅ Loaded {connector_count} connectors: {connector_names}")
+            else:
+                print(f"[WFC] ⚠️  Failed to load connectors from {connectors_file}")
+                print(f"[WFC] Using default connectors")
+        except Exception as e:
+            print(f"[WFC] ❌ Error loading connector registry: {e}")
+            print(f"[WFC] Using default connectors")
+    else:
+        print(f"[WFC] ⚠️  Connector file not found: {connectors_file}")
+        print(f"[WFC] Using default connectors from connector_registry.py")
+
+    # Print summary
+    print(f"[WFC] Connector registry ready with {len(connector_registry.connectors)} connectors")
+
+
 def register():
+    # NEW: Load connector registry from JSON (Task 1B.3)
+    _load_connector_registry()
+
     for r_class in REGISTER_CLASSES:
         bpy.utils.register_class(r_class)
 
