@@ -17,7 +17,7 @@ See docs/features/PRIMITIVE_UI_REFACTORING_ANALYSIS.md for details.
 
 import bpy
 from bpy.props import EnumProperty, StringProperty
-from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, CONNECTORS, PrimitiveDefinition
+from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, PrimitiveDefinition
 from .wfc_values import bl_category_name
 from .primitive_data_actual import *
 
@@ -212,29 +212,25 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
     pos_x: EnumProperty(
         name="+X Connector",
         description="Connector on positive X face",
-        items=CONNECTORS,
-        default='ROAD'
+        items=get_connector_enum_items
     ) # type: ignore
 
     neg_x: EnumProperty(
         name="-X Connector",
         description="Connector on negative X face",
-        items=CONNECTORS,
-        default='ROAD'
+        items=get_connector_enum_items
     ) # type: ignore
 
     pos_y: EnumProperty(
         name="+Y Connector",
         description="Connector on positive Y face",
-        items=CONNECTORS,
-        default='ROAD'
+        items=get_connector_enum_items
     ) # type: ignore
 
     neg_y: EnumProperty(
         name="-Y Connector",
         description="Connector on negative Y face",
-        items=CONNECTORS,
-        default='ROAD'
+        items=get_connector_enum_items
     ) # type: ignore
 
     def invoke(self, context, event):

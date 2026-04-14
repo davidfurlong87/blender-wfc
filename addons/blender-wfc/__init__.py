@@ -63,7 +63,7 @@ if "bpy" in locals():
 # All imports happen AFTER the reload block to ensure we get the latest versions
 
 from .wfc_values import bl_category_name, CollectionNames, module_size, primitive_offset_x
-from .wfc_enums import CONNECTORS, PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES
+from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 # NEW: Connector registry (Task 1B.3)
 from .connector_registry import connector_registry
@@ -651,25 +651,27 @@ def register():
         description="Classification of object",
         items = get_primitive_type_items
     )
+    # Build connector items from registry - registry is already loaded at this point
+    connector_items = get_connector_enum_items()
     bpy.types.Object.x_pos_connector = bpy.props.EnumProperty(
         name="XPos",
         description="Classification of object",
-        items=CONNECTORS
+        items=connector_items
     )
     bpy.types.Object.x_neg_connector = bpy.props.EnumProperty(
         name="XNeg",
         description="Classification of object",
-        items=CONNECTORS
+        items=connector_items
     )
     bpy.types.Object.y_pos_connector = bpy.props.EnumProperty(
         name="YPos",
         description="Classification of object",
-        items=CONNECTORS
+        items=connector_items
     )
     bpy.types.Object.y_neg_connector = bpy.props.EnumProperty(
         name="YNeg",
         description="Classification of object",
-        items=CONNECTORS
+        items=connector_items
     )
     def update_remaining_modules(self, context):
         context.view_layer.update()
