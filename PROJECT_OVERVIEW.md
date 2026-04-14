@@ -112,6 +112,7 @@ User Models → Primitives → Modules → Grid Cells → Collapsed World
 - [ ] Implement proper error handling and validation
 - [ ] Create consistent API for primitive import/export
 - [x] Refactor module reload system in `__init__.py` ✅ (See `docs/dependencies/MODULE_RELOADING_GUIDE.md`)
+- [ ] Add something like 'isSymmetrical' as a parameter for primitives. If that object is 'symmetrical' it will look the same in all four rotations, and should only have a single module made of it (and not four identical rotations)
 
 ### Performance Optimizations
 - [ ] Profile collapse process for bottlenecks

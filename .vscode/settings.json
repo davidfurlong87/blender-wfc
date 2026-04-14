@@ -4,6 +4,8 @@
         "editmode",
         "idname",
         "neighbour",
+        "PAVEMENTNEG",
+        "PAVEMENTPOS",
         "pydata",
         "Regen",
         "uncollapsed",

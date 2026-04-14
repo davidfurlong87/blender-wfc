@@ -1,0 +1,141 @@
+{
+  "format_version": "1.0",
+  "connectors": [
+    {
+      "name": "ROAD",
+      "description": "Road connector - matches roads",
+      "compatible_with": [
+        "ROAD"
+      ],
+      "grid_category": "outer_grid",
+      "is_symmetric": true
+    },
+    {
+      "name": "BUILDING",
+      "description": "Building connector - matches buildings",
+      "compatible_with": [
+        "BUILDING"
+      ],
+      "grid_category": "outer_grid",
+      "is_symmetric": true
+    },
+    {
+      "name": "PAVEMENTPOS",
+      "description": "Pavement positive edge",
+      "compatible_with": [
+        "PAVEMENTNEG"
+      ],
+      "grid_category": "outer_grid",
+      "is_symmetric": false
+    },
+    {
+      "name": "PAVEMENTNEG",
+      "description": "Pavement negative edge",
+      "compatible_with": [
+        "PAVEMENTPOS"
+      ],
+      "grid_category": "outer_grid",
+      "is_symmetric": false
+    },
+    {
+      "name": "WALL",
+      "description": "Solid wall - matches walls, doors, and windows",
+      "compatible_with": [
+        "WALL",
+        "DOOR",
+        "WINDOW"
+      ],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "DOOR",
+      "description": "Door opening - matches walls, doors, and hallways",
+      "compatible_with": [
+        "WALL",
+        "DOOR",
+        "HALLWAY"
+      ],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "WINDOW",
+      "description": "Window opening - matches walls and windows",
+      "compatible_with": [
+        "WALL",
+        "WINDOW"
+      ],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "HALLWAY",
+      "description": "Hallway opening - matches hallways and doors",
+      "compatible_with": [
+        "HALLWAY",
+        "DOOR"
+      ],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "EMPTY",
+      "description": "Empty space - matches empty",
+      "compatible_with": [
+        "EMPTY"
+      ],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "GRASS",
+      "description": "Grass area - matches grass and paths",
+      "compatible_with": [
+        "GRASS",
+        "PATH"
+      ],
+      "grid_category": "park",
+      "is_symmetric": true
+    },
+    {
+      "name": "PATH",
+      "description": "Pathway - matches paths, grass, and features",
+      "compatible_with": [
+        "PATH",
+        "GRASS",
+        "FOUNTAIN",
+        "BENCH"
+      ],
+      "grid_category": "park",
+      "is_symmetric": true
+    },
+    {
+      "name": "FOUNTAIN",
+      "description": "Fountain feature - matches paths",
+      "compatible_with": [
+        "PATH"
+      ],
+      "grid_category": "park",
+      "is_symmetric": true
+    },
+    {
+      "name": "BENCH",
+      "description": "Bench feature - matches paths",
+      "compatible_with": [
+        "PATH"
+      ],
+      "grid_category": "park",
+      "is_symmetric": true
+    },
+    {
+      "name": "TREE",
+      "description": "Tree - matches grass",
+      "compatible_with": [
+        "GRASS"
+      ],
+      "grid_category": "park",
+      "is_symmetric": true
+    }
+  ]
+}

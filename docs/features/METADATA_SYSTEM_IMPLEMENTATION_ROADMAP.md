@@ -117,26 +117,26 @@
 
 **Task 1A.1: Add Sizing Fields to PrimitiveData** (1 hour) ⭐ **START HERE**
 - [ ] Modify `addons/blender-wfc/primitive_data_core.py`:
-  - [ ] Add `physical_size: float = 8.0`
-  - [ ] Add `grid_category: str = "outer_grid"`
-  - [ ] Add `resolution_multiplier: int = 1`
+  - [x] Add `physical_size: float = 8.0`
+  - [x] Add `grid_category: str = "outer_grid"`
+  - [x] Add `resolution_multiplier: int = 1`
   - [ ] Add `visualization_offset: float = None` (optional)
 - [ ] Update `validate()` method:
-  - [ ] Check `physical_size > 0`
-  - [ ] Check `resolution_multiplier >= 1`
-  - [ ] Check `grid_category` in allowed list
-  - [ ] Validate consistency (outer_grid → resolution=1)
-- [ ] Update `to_dict()` to include new fields
-- [ ] Update `from_dict()` with defaults for backward compatibility
+  - [x] Check `physical_size > 0`
+  - [x] Check `resolution_multiplier >= 1`
+  - [x] Check `grid_category` in allowed list
+  - [x] Validate consistency (outer_grid → resolution=1)
+- [x] Update `to_dict()` to include new fields
+- [x] Update `from_dict()` with defaults for backward compatibility
 
 **Task 1A.2: Update Serialization & Tests** (1 hour)
-- [ ] Test primitive with new fields serializes correctly
-- [ ] Test old JSON files load with defaults
-- [ ] Update `tests/test_primitive_data.py`:
-  - [ ] Test new field validation
-  - [ ] Test JSON round-trip with metadata
-  - [ ] Test backward compatibility
-- [ ] Verify no breaking changes
+- [x] Test primitive with new fields serializes correctly
+- [x] Test old JSON files load with defaults
+- [x] Update `tests/test_primitive_data.py`:
+  - [x] Test new field validation
+  - [x] Test JSON round-trip with metadata
+  - [x] Test backward compatibility
+- [x] Verify no breaking changes
 
 **Task 1A.3: Update PrimitiveAdapter** (30 min)
 - [ ] Modify `primitive_adapter.py`:
@@ -150,32 +150,32 @@
 #### **Phase 1B: Connector Registry System** (2-3 hours)
 
 **Task 1B.1: Create ConnectorRegistry** (2 hours)
-- [ ] Create `addons/blender-wfc/connector_registry.py`:
-  - [ ] `ConnectorDefinition` dataclass
-    - [ ] `name: str`
-    - [ ] `description: str`
-    - [ ] `compatible_with: List[str]`
-    - [ ] `grid_category: str`
-    - [ ] `is_symmetric: bool`
-  - [ ] `ConnectorRegistry` class
-    - [ ] `register(connector)` method
-    - [ ] `get(name)` method
-    - [ ] `matches(a, b)` method ⭐ **Key function**
-    - [ ] `get_all_for_category(category)` method
-    - [ ] `to_dict()` / `from_dict()` for JSON
-    - [ ] `save_to_file()` / `load_from_file()`
-  - [ ] Global instance: `connector_registry`
-  - [ ] `_load_defaults()` with outer grid connectors
+- [x] Create `addons/blender-wfc/connector_registry.py`:
+  - [x] `ConnectorDefinition` dataclass
+    - [x] `name: str`
+    - [x] `description: str`
+    - [x] `compatible_with: List[str]`
+    - [x] `grid_category: str`
+    - [x] `is_symmetric: bool`
+  - [x] `ConnectorRegistry` class
+    - [x] `register(connector)` method
+    - [x] `get(name)` method
+    - [x] `matches(a, b)` method ⭐ **Key function**
+    - [x] `get_all_for_category(category)` method
+    - [x] `to_dict()` / `from_dict()` for JSON
+    - [x] `save_to_file()` / `load_from_file()`
+  - [x] Global instance: `connector_registry`
+  - [x] `_load_defaults()` with outer grid connectors
 
 **Task 1B.2: Create Default Connector Library** (30 min)
-- [ ] Create `addons/blender-wfc/data/` directory
-- [ ] Create `addons/blender-wfc/data/connectors.json`:
-  - [ ] ROAD → ROAD
-  - [ ] BUILDING → BUILDING
-  - [ ] PAVEMENTPOS → PAVEMENTNEG
-  - [ ] PAVEMENTNEG → PAVEMENTPOS
-  - [ ] WALL, DOOR, WINDOW, HALLWAY (building connectors)
-- [ ] Add file format versioning
+- [x] Create `addons/blender-wfc/data/` directory
+- [x] Create `addons/blender-wfc/data/connectors.json`:
+  - [x] ROAD → ROAD
+  - [x] BUILDING → BUILDING
+  - [x] PAVEMENTPOS → PAVEMENTNEG
+  - [x] PAVEMENTNEG → PAVEMENTPOS
+  - [x] WALL, DOOR, WINDOW, HALLWAY (building connectors)
+- [x] Add file format versioning
 
 **Task 1B.3: Load Registry on Startup** (30 min)
 - [ ] Modify `addons/blender-wfc/__init__.py`:

@@ -86,13 +86,18 @@ class PrimitiveAdapter:
             
             # Extract vertex groups (optimized version)
             vertex_groups = self._extract_vertex_groups_optimized(obj)
-            
+
+            # TODO: Add error handling, or some sort of visual feedback which tells the user the property was missing
+            physical_size = obj.get('physical_size', 8.0)  # Default to 8.0 for outer grid
+            grid_category = obj.get('grid_category', 'outer_grid')  # Default to outer_grid
+            resolution_multiplier = obj.get('resolution_multiplier', 1)  # Default to 1
+
             # Create metadata
             metadata = {
                 'blender_object_name': obj.name,
                 'extraction_tool': 'PrimitiveAdapter'
             }
-            
+
             # Create PrimitiveData instance
             primitive_data = PrimitiveData(
                 name=obj.name,
@@ -106,7 +111,10 @@ class PrimitiveAdapter:
                 pos_y_connector=pos_y_connector,
                 neg_y_connector=neg_y_connector,
                 vertex_groups=vertex_groups,
-                metadata=metadata
+                metadata=metadata,
+                physical_size=physical_size,
+                grid_category=grid_category,
+                resolution_multiplier=resolution_multiplier
             )
             
             # Validate the extracted data
@@ -205,16 +213,17 @@ class PrimitiveAdapter:
                 if i < len(primitive_data.mat_indices):
                     poly.material_index = primitive_data.mat_indices[i]
 
-            # Set primitive type property
             mesh_obj.primitive_type = primitive_data.primitive_type
 
-            # Set connector properties
             mesh_obj.x_pos_connector = primitive_data.pos_x_connector
             mesh_obj.x_neg_connector = primitive_data.neg_x_connector
             mesh_obj.y_pos_connector = primitive_data.pos_y_connector
             mesh_obj.y_neg_connector = primitive_data.neg_y_connector
 
-            # Apply vertex groups
+            mesh_obj['physical_size'] = primitive_data.physical_size
+            mesh_obj['grid_category'] = primitive_data.grid_category
+            mesh_obj['resolution_multiplier'] = primitive_data.resolution_multiplier
+
             self._apply_vertex_groups(mesh_obj, primitive_data.vertex_groups)
 
             return mesh_obj, errors
@@ -231,7 +240,6 @@ class PrimitiveAdapter:
             obj: Blender object to apply vertex groups to
             vertex_group_data: Dictionary of vertex group data
         """
-        # Clear existing vertex groups
         obj.vertex_groups.clear()
 
         # Recreate vertex groups
