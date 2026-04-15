@@ -9,11 +9,21 @@ class PrimitiveDefinition:
         return (f'{self.name.upper()}', self.name, self.description)
 
 PRIMITIVE_TYPES=[
-    ('NONE', "None", ""),
-    ('ROAD_STRAIGHT', "Road_Straight", ""),
-    ('PAVEMENT', "Pavement", ""),
-    ('BUILDING', "Building", ""),
-    ('CORNER', "Corner", ""),
+    # ── Outer grid (8 m) ─────────────────────────────────────────────────
+    ('NONE',          "None",          ""),
+    ('ROAD_STRAIGHT', "Road Straight", "Straight road segment"),
+    ('PAVEMENT',      "Pavement",      "Pavement strip alongside road"),
+    ('BUILDING',      "Building",      "Full building plot cell"),
+    ('CORNER',        "Corner",        "Corner where road meets pavement"),
+    # ── Building interior (2 m) ──────────────────────────────────────────
+    ('ROOM',          "Room",          "Enclosed room — walls on all sides"),
+    ('CORRIDOR',      "Corridor",      "Straight corridor / hallway run"),
+    ('CORNER_ROOM',   "Corner Room",   "Room with door on one side, hallway on another"),
+    ('OPEN_SPACE',    "Open Space",    "Fully open area — no walls"),
+    # ── Park (1 m) ───────────────────────────────────────────────────────
+    ('GRASS',         "Grass",         "Grass area"),
+    ('PATH',          "Path",          "Paved or gravel path"),
+    ('FEATURE',       "Feature",       "Park feature (fountain, bench, tree, etc.)"),
 ]
 
 CUSTOM_PRIMITIVE_TYPES = []

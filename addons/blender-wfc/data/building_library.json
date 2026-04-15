@@ -1,0 +1,231 @@
+{
+  "format_version": "1.0",
+  "library_metadata": {
+    "author": "WFC System",
+    "version": "1.0",
+    "grid_category": "building",
+    "physical_size": "2.0",
+    "resolution_multiplier": "4",
+    "library_name": "Building Library",
+    "description": "Interior building primitives for WFC sub-grid generation. Physical size: 2 m. Grid category: building. Resolution multiplier: 4.",
+    "primitive_count": 4
+  },
+  "primitives": [
+    {
+      "name": "Room",
+      "primitive_type": "ROOM",
+      "verts": [
+        [
+          -1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "faces": [
+        [
+          0,
+          1,
+          3,
+          2
+        ]
+      ],
+      "mat_indices": [
+        0
+      ],
+      "material_names": [
+        "Building_Interior"
+      ],
+      "connectors": {
+        "pos_x": "WALL",
+        "neg_x": "WALL",
+        "pos_y": "WALL",
+        "neg_y": "WALL"
+      },
+      "vertex_groups": {},
+      "metadata": {
+        "description": "Enclosed room \u2014 all walls, 1 module generated (rotation invariant)"
+      },
+      "physical_size": 2.0,
+      "grid_category": "building",
+      "resolution_multiplier": 4,
+      "rotation_invariant": true
+    },
+    {
+      "name": "Corridor_H",
+      "primitive_type": "CORRIDOR",
+      "verts": [
+        [
+          -1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "faces": [
+        [
+          0,
+          1,
+          3,
+          2
+        ]
+      ],
+      "mat_indices": [
+        0
+      ],
+      "material_names": [
+        "Building_Interior"
+      ],
+      "connectors": {
+        "pos_x": "HALLWAY",
+        "neg_x": "HALLWAY",
+        "pos_y": "WALL",
+        "neg_y": "WALL"
+      },
+      "vertex_groups": {},
+      "metadata": {
+        "description": "Horizontal corridor \u2014 hallway on +X/-X, wall on +Y/-Y"
+      },
+      "physical_size": 2.0,
+      "grid_category": "building",
+      "resolution_multiplier": 4,
+      "rotation_invariant": false
+    },
+    {
+      "name": "Corner_Room",
+      "primitive_type": "CORNER_ROOM",
+      "verts": [
+        [
+          -1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "faces": [
+        [
+          0,
+          1,
+          3,
+          2
+        ]
+      ],
+      "mat_indices": [
+        0
+      ],
+      "material_names": [
+        "Building_Interior"
+      ],
+      "connectors": {
+        "pos_x": "DOOR",
+        "neg_x": "WALL",
+        "pos_y": "HALLWAY",
+        "neg_y": "WALL"
+      },
+      "vertex_groups": {},
+      "metadata": {
+        "description": "Corner room \u2014 door on +X, hallway on +Y, walls on -X/-Y"
+      },
+      "physical_size": 2.0,
+      "grid_category": "building",
+      "resolution_multiplier": 4,
+      "rotation_invariant": false
+    },
+    {
+      "name": "Open_Space",
+      "primitive_type": "OPEN_SPACE",
+      "verts": [
+        [
+          -1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "faces": [
+        [
+          0,
+          1,
+          3,
+          2
+        ]
+      ],
+      "mat_indices": [
+        0
+      ],
+      "material_names": [
+        "Building_Interior"
+      ],
+      "connectors": {
+        "pos_x": "EMPTY",
+        "neg_x": "EMPTY",
+        "pos_y": "EMPTY",
+        "neg_y": "EMPTY"
+      },
+      "vertex_groups": {},
+      "metadata": {
+        "description": "Open area \u2014 no walls in any direction, 1 module generated"
+      },
+      "physical_size": 2.0,
+      "grid_category": "building",
+      "resolution_multiplier": 4,
+      "rotation_invariant": true
+    }
+  ]
+}

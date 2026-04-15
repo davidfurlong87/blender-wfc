@@ -481,45 +481,90 @@ class OBJECT_OT_WFCLoadPrimitive(bpy.types.Operator):
             return {'CANCELLED'}
 
         try:
-            # Load from file using persistence
-            persistence = PrimitivePersistence()
+            import json as _json
+            with open(self.filepath, 'r') as _f:
+                _raw = _json.load(_f)
+            is_library = 'primitives' in _raw
+        except Exception as e:
+            self.report({'ERROR'}, f"Could not read file: {e}")
+            return {'CANCELLED'}
+
+        persistence = PrimitivePersistence()
+        adapter = PrimitiveAdapter()
+
+        if is_library:
+            # ── Library format: load all primitives at once ──────────────
+            primitives_list, lib_meta, load_errors = persistence.load_primitive_library(self.filepath)
+
+            for err in load_errors:
+                self.report({'WARNING'}, err)
+
+            if not primitives_list:
+                self.report({'ERROR'}, "No primitives loaded from library")
+                return {'CANCELLED'}
+
+            # Resolve or create the WFC Primitives collection
+            try:
+                from .wfc_values import CollectionNames
+                from .collectiontools.collection_creation import get_or_create_collection
+                prim_collection = get_or_create_collection(CollectionNames.Primitives.value)
+            except Exception:
+                prim_collection = context.scene.collection
+
+            created = []
+            spacing = 0.0
+            for prim_data in primitives_list:
+                loc = (spacing, -10.0, 0.0)
+                obj, create_errors = adapter.create_blender_object_from_primitive(
+                    prim_data, collection=prim_collection, location=loc
+                )
+                for err in create_errors:
+                    self.report({'WARNING'}, err)
+                if obj:
+                    created.append(obj)
+                    spacing += prim_data.physical_size * 2
+
+            if created:
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in created:
+                    obj.select_set(True)
+                context.view_layer.objects.active = created[-1]
+                lib_name = lib_meta.get('library_name', 'library')
+                self.report({'INFO'}, f"Loaded {len(created)} primitives from '{lib_name}'")
+                return {'FINISHED'}
+            else:
+                self.report({'ERROR'}, "Failed to create any objects from library")
+                return {'CANCELLED'}
+
+        else:
+            # ── Single primitive format ───────────────────────────────────
             primitive_data, load_errors = persistence.load_primitive_from_file(self.filepath)
 
-            if load_errors:
-                for err in load_errors:
-                    self.report({'WARNING'}, err)
+            for err in load_errors:
+                self.report({'WARNING'}, err)
 
             if not primitive_data:
                 self.report({'ERROR'}, "Failed to load primitive data")
                 return {'CANCELLED'}
 
-            # Create Blender object using adapter
-            adapter = PrimitiveAdapter()
             new_obj, create_errors = adapter.create_blender_object_from_primitive(
                 primitive_data,
                 collection=context.scene.collection,
                 location=context.scene.cursor.location
             )
 
-            if create_errors:
-                for err in create_errors:
-                    self.report({'WARNING'}, err)
+            for err in create_errors:
+                self.report({'WARNING'}, err)
 
             if new_obj:
-                # Select the new object
                 bpy.ops.object.select_all(action='DESELECT')
                 new_obj.select_set(True)
                 context.view_layer.objects.active = new_obj
-
                 self.report({'INFO'}, f"Loaded primitive: {new_obj.name}")
                 return {'FINISHED'}
             else:
                 self.report({'ERROR'}, "Failed to create object from primitive")
                 return {'CANCELLED'}
-
-        except Exception as e:
-            self.report({'ERROR'}, f"Unexpected error: {str(e)}")
-            return {'CANCELLED'}
 
 
 class OBJECT_OT_WFCConvertToPrimitive(bpy.types.Operator):

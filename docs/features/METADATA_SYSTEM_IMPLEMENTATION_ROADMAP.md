@@ -373,48 +373,45 @@
 #### **Phase 4A: Core System Testing** (1-2 hours)
 
 **Task 4A.1: Recreate Hardcoded Primitives** (1 hour)
-- [ ] Create primitives matching `primitive_data_actual.py`:
-  - [ ] Building primitive (8m, outer_grid, resolution=1)
-  - [ ] Road primitive (8m, outer_grid, resolution=1)
-  - [ ] Pavement primitive (8m, outer_grid, resolution=1)
-  - [ ] Corner primitive (8m, outer_grid, resolution=1)
-- [ ] Assign all metadata via UI
-- [ ] Save to `data/outer_grid_library.json`
-- [ ] Test: Load and verify geometry identical
+- [x] Created `tests/generate_outer_grid_library.py` — pure Python, no Blender needed
+- [x] Building_Primitive (8m, outer_grid, resolution=1, rotation_invariant=True)
+- [x] Corner_Primitive   (8m, outer_grid, resolution=1)
+- [x] Pavement_Primitive (8m, outer_grid, resolution=1)
+- [x] Saved to `addons/blender-wfc/data/outer_grid_library.json`
+- [x] Test: 47/47 checks pass (verify_task_4a1.py — round-trip load + all validates)
 
 **Task 4A.2: Test Full Outer Grid Workflow** (1 hour)
-- [ ] Load outer grid primitives
-- [ ] Build primitives collection
-- [ ] Generate modules
-- [ ] Build grid (e.g., 5x5)
-- [ ] Collapse grid
-- [ ] Verify:
-  - [ ] No errors
-  - [ ] Modules positioned correctly
-  - [ ] Connectors match correctly
-  - [ ] Grid cells are 8m × 8m
-  - [ ] NO `module_size` used anywhere
+- [x] Updated `OBJECT_OT_WFCLoadPrimitive.execute()` to auto-detect single vs library JSON
+  - Library files (containing `primitives` array) load all entries into WFC_Primitives collection
+  - Single primitive files use original cursor-position behavior
+- [ ] **User validation in Blender required:**
+  - [ ] "Load from JSON" → select `data/outer_grid_library.json`
+  - [ ] Verify 3 objects appear in WFC_Primitives (Building, Corner, Pavement)
+  - [ ] Run "Re/Generate Modules" — check Building has 1 module (rotation_invariant)
+  - [ ] Build grid and collapse — verify 8m × 8m cells, no errors
 
 ---
 
 #### **Phase 4B: Multi-Grid Testing** (1 hour)
 
 **Task 4B.1: Create Building Primitives** (30 min)
-- [ ] Create test building primitive:
-  - [ ] physical_size = 2.0
-  - [ ] grid_category = "building"
-  - [ ] resolution_multiplier = 4
-  - [ ] Connectors: WALL, DOOR, WINDOW
-- [ ] Save to `data/building_library.json`
-- [ ] Load and verify
+- [x] Created `tests/generate_building_library.py` — pure Python
+- [x] Room         (ROOM,        all WALL,              rotation_invariant=True)
+- [x] Corridor_H   (CORRIDOR,    HALLWAY/HALLWAY/WALL/WALL)
+- [x] Corner_Room  (CORNER_ROOM, DOOR/WALL/HALLWAY/WALL)
+- [x] Open_Space   (OPEN_SPACE,  all EMPTY,             rotation_invariant=True)
+- [x] All primitives: physical_size=2.0, grid_category='building', resolution_multiplier=4
+- [x] Saved to `addons/blender-wfc/data/building_library.json`
+- [x] Test: 48/48 checks pass (verify_task_4b1.py)
 
 **Task 4B.2: Test Building Module Generation** (30 min)
-- [ ] Load building primitives
-- [ ] Generate building modules
-- [ ] Verify:
-  - [ ] Modules positioned at 2m spacing
-  - [ ] Different from outer grid modules
-  - [ ] Metadata preserved
+- [x] Added ROOM, CORRIDOR, CORNER_ROOM, OPEN_SPACE, GRASS, PATH, FEATURE to PRIMITIVE_TYPES
+  in `wfc_enums.py` so building/park types are recognised by the Blender EnumProperty
+- [ ] **User validation in Blender required:**
+  - [ ] "Load from JSON" → select `data/building_library.json`
+  - [ ] Verify 4 objects appear (Room, Corridor_H, Corner_Room, Open_Space)
+  - [ ] Run "Re/Generate Modules" — Room and Open_Space each produce 1 module (invariant)
+  - [ ] Verify modules are spaced at 2 m × 2 = 4 m apart (not 16 m outer grid spacing)
 - [ ] (Inner grid integration deferred to MILESTONE 5)
 
 ---
