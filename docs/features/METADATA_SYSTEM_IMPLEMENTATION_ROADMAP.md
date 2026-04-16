@@ -425,45 +425,62 @@
 #### **Phase 5A: Primitive Library Management** (2-3 hours)
 
 **Task 5A.1: Category-Based Library System** (2 hours)
-- [ ] Modify `primitive_persistence.py`:
-  - [ ] `save_primitives_library_by_category()`
-  - [ ] `load_primitives_by_category()`
-  - [ ] Filter by grid_category
-- [ ] Create library structure:
-  - [ ] `data/outer_grid_library.json`
-  - [ ] `data/building_library.json`
-  - [ ] `data/park_library.json`
+- [x] Added `CATEGORY_LIBRARY_FILES` mapping in `primitive_persistence.py`
+- [x] Added `load_primitives_by_category(category, data_dir)` to `PrimitivePersistence`
+  - Looks up the correct library file for the category
+  - Secondary filter ensures only matching primitives are returned
+  - Returns `([], errors)` with descriptive error on unknown category / missing file
+- [x] Library files already created: `outer_grid_library.json` (M4), `building_library.json` (M4)
+- [x] Test: 9/9 checks pass (verify_milestone5_static.py)
 
 **Task 5A.2: Library UI Operators** (1 hour)
-- [ ] Create `OBJECT_OT_WFCLoadPrimitiveLibrary`
-- [ ] Create `OBJECT_OT_WFCSavePrimitiveLibrary`
-- [ ] Add to panel with category selection
+- [x] Superseded by the auto-detect load operator added in Task 4A.2
+  - "Load from JSON" already handles both single primitives and library files
+  - Auto-detects format from the `primitives` JSON key
+- [x] "Load from JSON" auto-places all library primitives into WFC_Primitives collection
 
 ---
 
 #### **Phase 5B: Module Generation Refactoring** (1-2 hours)
 
 **Task 5B.1: Create Category-Specific Generators** (1-2 hours)
-- [ ] Add `generate_building_modules()` to `__init__.py`
-- [ ] Add `generate_park_modules()` to `__init__.py`
-- [ ] Refactor common logic
-- [ ] Store in categorized collections
+- [x] Added `grid_category='outer_grid'` parameter to `WFCModule.__init__()` in `wfc_classes.py`
+- [x] Added `CollectionNames.BuildingModules = 'WFC_Building_Modules'` in `wfc_values.py`
+- [x] Added to `__init__.py`:
+  - `all_building_modules` global list
+  - `get_building_modules()` helper
+  - `clear_all_building_modules()` cleaner
+  - `generate_building_modules()` — mirrors outer-grid logic for building category
+  - `OBJECT_OT_BuildBuildingModules` — "Build Building Modules" operator
+- [x] `generate_modules()` now passes `grid_category` to each `WFCModule`
+- [x] Test: 11/11 checks pass
 
 ---
 
 #### **Phase 5C: Inner Grid Workflow Integration** (2-3 hours)
 
 **Task 5C.1: Update BlenderWFCAdapter for Inner Grids** (2 hours)
-- [ ] Add `get_modules_for_category(category)` method
-- [ ] Update `create_inner_grid_for_island()`:
-  - [ ] Accept `category` parameter
-  - [ ] Auto-load modules if not provided
-  - [ ] Use correct `physical_size` for grid
+- [x] Added `get_modules_for_category(category)` to `BlenderWFCAdapter`
+  - Filters `blender_module_map` by `WFCModule.grid_category`
+  - Returns `AlgorithmModule` list for that category
+- [x] Updated `create_inner_grid_for_island()`:
+  - New `category` parameter — auto-resolves modules via `get_modules_for_category()`
+  - Returns `(inner_grid, resolved_modules)` tuple instead of just `inner_grid`
+  - `resolution_multiplier` scales island grid size correctly
+- [x] Test: 3/3 checks pass
 
 **Task 5C.2: Update Building Plot Operators** (1 hour)
-- [ ] Auto-generate building modules if needed
-- [ ] Pass building modules to inner grid creation
-- [ ] Test full building generation workflow
+- [x] Added `OBJECT_OT_GenerateBuildingInnerGrid` operator ("Collapse Building Islands"):
+  - Guards: outer grid must be fully collapsed; building modules must exist
+  - Extracts building plots via `extract_plots_from_grid()`
+  - Groups into islands via `group_plot_islands()`
+  - Creates a fresh `BlenderWFCAdapter` for the inner grid per-island
+  - Collapses each island's inner grid with building modules
+  - Visualizes collapsed cells in the WFC_Grid collection
+- [x] Added "Inner Grid (Building)" section to `OBJECT_PT_WFCGridPanel`
+  - "Build Building Modules" button
+  - "Collapse Building Islands" button
+- [x] Test: 6/6 checks pass
 
 ---
 

@@ -5,7 +5,7 @@ from mathutils import Vector
 
 class WFCModule:
     def __init__(self, name, obj_source, module_weight, pos_x, neg_x, pos_y, neg_y,
-                 physical_size=8.0):
+                 physical_size=8.0, grid_category='outer_grid'):
         self.name = name
         self.obj_source = obj_source
         self.module_weight = module_weight
@@ -15,6 +15,8 @@ class WFCModule:
         self.neg_y = neg_y
         self.physical_size = physical_size
         """Physical size of this module in meters — used for grid cell placement"""
+        self.grid_category = grid_category
+        """Grid category this module belongs to (outer_grid, building, park, …)"""
         self.pos_x_pairs = []
         self.neg_x_pairs = []
         self.pos_y_pairs = []

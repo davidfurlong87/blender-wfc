@@ -785,64 +785,92 @@ class BlenderWFCAdapter:
 
         return (grid_width, grid_height)
 
-    def create_inner_grid_for_island(self, island, resolution_multiplier=4, inner_modules=None):
+    def get_modules_for_category(self, category: str):
         """
-        Create a higher-resolution WFC grid for an island
+        Return ``AlgorithmModule`` instances filtered by grid category.
 
-        This creates an inner grid that can be collapsed using the same WFC algorithm
-        to generate detailed content (e.g., buildings, parks, etc.) on the island.
+        The adapter's ``blender_module_map`` holds **all** registered Blender
+        WFC modules (outer grid + any sub-grid modules that were set up via
+        ``setup_from_blender_modules()``).  This helper filters to only those
+        whose ``WFCModule.grid_category`` matches *category*.
 
         Args:
-            island: Island dictionary from group_plot_islands()
-            resolution_multiplier: How many inner cells per outer cell (default: 4)
-                                   e.g., 4 = 4x4 inner grid per outer cell
-                                   Higher = more detail but slower
-            inner_modules: List of AlgorithmModule instances to use for inner grid
-                          If None, you'll need to provide modules separately
+            category: Grid category string, e.g. ``'building'`` or
+                      ``'outer_grid'``.
 
         Returns:
-            Grid instance for the inner grid (from wfc_algorithm.grid)
+            List of ``AlgorithmModule`` instances whose corresponding
+            ``WFCModule.grid_category == category``.  Empty if none found.
 
-        Example:
-            # Create 4x4 inner grid (16 cells per outer cell)
-            inner_grid = adapter.create_inner_grid_for_island(island, resolution_multiplier=4)
+        Example::
 
-            # Create 8x8 inner grid (64 cells per outer cell) for more detail
-            inner_grid = adapter.create_inner_grid_for_island(island, resolution_multiplier=8)
+            building_algo_modules = adapter.get_modules_for_category('building')
         """
-        # Calculate inner grid dimensions
-        grid_size = island['grid_size']  # Size in outer cells
-        inner_width = grid_size[0] * resolution_multiplier
-        inner_height = grid_size[1] * resolution_multiplier
+        result = []
+        for module_id, blender_module in self.blender_module_map.items():
+            if getattr(blender_module, 'grid_category', 'outer_grid') == category:
+                algo_module = self.algorithm_module_map.get(module_id)
+                if algo_module is not None:
+                    result.append(algo_module)
+        return result
 
-        # Create inner grid
+    def create_inner_grid_for_island(self, island, resolution_multiplier=4,
+                                       inner_modules=None, category=None):
+        """
+        Create a higher-resolution WFC grid for an island.
+
+        This creates an inner grid that can be collapsed using the WFC algorithm
+        to generate detailed content (e.g., buildings, parks) on the island.
+
+        Args:
+            island: Island dictionary from ``group_plot_islands()``.
+            resolution_multiplier: How many inner cells span one outer cell
+                                   (default: 4 → 4×4 inner cells per outer cell).
+            inner_modules: Explicit list of ``AlgorithmModule`` instances.
+                           If *None*, the method tries to resolve them automatically
+                           from *category* via ``get_modules_for_category()``.
+            category: Grid category string used to look up modules automatically
+                      when *inner_modules* is not provided (e.g. ``'building'``).
+
+        Returns:
+            ``(inner_grid, resolved_modules)`` where *inner_grid* is a populated
+            ``Grid`` instance and *resolved_modules* is the list of
+            ``AlgorithmModule`` instances that was used (useful for building
+            module-pair relationships before running WFC on the inner grid).
+
+        Example::
+
+            inner_grid, modules = adapter.create_inner_grid_for_island(
+                island, resolution_multiplier=4, category='building')
+            adapter.build_algorithm_module_pairs(modules)
+            inner_wfc = WFCAlgorithm(inner_grid)
+        """
+        # ── Resolve modules ────────────────────────────────────────────────
+        if inner_modules is None:
+            if category is not None:
+                inner_modules = self.get_modules_for_category(category)
+            else:
+                inner_modules = []
+
+        # ── Calculate inner grid dimensions ───────────────────────────────
+        grid_size = island['grid_size']   # (width, height) in outer cells
+        inner_width  = max(1, grid_size[0] * resolution_multiplier)
+        inner_height = max(1, grid_size[1] * resolution_multiplier)
+
+        # ── Populate grid ─────────────────────────────────────────────────
         inner_grid = Grid(width=inner_width, height=inner_height)
+        for x in range(inner_width):
+            for y in range(inner_height):
+                cell = AlgorithmCell(
+                    x=x,
+                    y=y,
+                    possible_modules=inner_modules[:]
+                )
+                inner_grid.add_cell(cell)
 
-        # If modules provided, create cells with those modules
-        if inner_modules:
-            for x in range(inner_width):
-                for y in range(inner_height):
-                    cell = AlgorithmCell(
-                        x=x,
-                        y=y,
-                        possible_modules=inner_modules[:]
-                    )
-                    inner_grid.add_cell(cell)
-        else:
-            # Create empty grid (modules will be added later)
-            for x in range(inner_width):
-                for y in range(inner_height):
-                    cell = AlgorithmCell(
-                        x=x,
-                        y=y,
-                        possible_modules=[]
-                    )
-                    inner_grid.add_cell(cell)
+        # TODO: Set edge constraints based on outer grid adjacency
 
-        # TODO: Set edge constraints based on outer grid
-        # Inner grid edges should match the outer grid's constraints
-
-        return inner_grid
+        return inner_grid, inner_modules
 
 
 # Global adapter instance (singleton pattern)

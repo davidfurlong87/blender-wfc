@@ -62,7 +62,7 @@ if "bpy" in locals():
 # ============================================================================
 # All imports happen AFTER the reload block to ensure we get the latest versions
 
-from .wfc_values import bl_category_name, CollectionNames
+from .wfc_values import bl_category_name, CollectionNames, GridCategory
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 # NEW: Connector registry (Task 1B.3)
@@ -76,7 +76,7 @@ from .primitive_ui import build_default_primitives, PRIMITIVE_OPERATORS, PRIMITI
 from .wfc_plots import *
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 from .wfc_operators import *
-from .wfc_blender_adapter import get_wfc_adapter, reset_wfc_adapter
+from .wfc_blender_adapter import BlenderWFCAdapter, get_wfc_adapter, reset_wfc_adapter
 from .wfc_algorithm.core import WFCAlgorithm
 
 
@@ -270,7 +270,8 @@ def generate_modules():
                     neg_x = negX_placeholder,
                     pos_y = posY_placeholder,
                     neg_y = negY_placeholder,
-                    physical_size = size
+                    physical_size = size,
+                    grid_category = getattr(primitive, 'grid_category', GridCategory.OUTER_GRID),
                 )
             )
             posX_placeholder = module_obj.y_neg_connector
@@ -290,6 +291,117 @@ def generate_modules():
 
     for module in all_modules:
         build_module_pairs(module, all_modules)
+
+
+# ── Building-category module list (separate from outer-grid all_modules) ────
+all_building_modules = []
+
+
+def get_building_modules():
+    """Return the list of WFCModule instances for the building grid category."""
+    return all_building_modules
+
+
+def clear_all_building_modules():
+    """Remove building module Blender objects and clear the in-memory list."""
+    all_building_modules.clear()
+    delete_objects_and_meshes(
+        get_all_objects_from_collection(CollectionNames.BuildingModules.value)
+    )
+
+
+def generate_building_modules():
+    """
+    Generate WFC modules for all building-category primitives in the scene.
+
+    Mirrors generate_modules() but operates exclusively on primitives whose
+    grid_category == 'building' and stores results in WFC_Building_Modules.
+    These modules are used for inner-grid WFC collapse on building plot islands.
+    """
+    from .collectiontools.collection_creation import get_or_create_collection
+    building_collection = get_or_create_collection(CollectionNames.BuildingModules.value)
+    all_building_modules.clear()
+
+    building_primitives = get_primitives_by_category(GridCategory.BUILDING)
+    if not building_primitives:
+        print("[WFC] generate_building_modules: no building-category primitives found.")
+        return
+
+    starting_position = Vector((-50, -100, 0))  # separate display area from outer modules
+
+    for i, primitive in enumerate(building_primitives):
+        posX = primitive.x_pos_connector
+        negX = primitive.x_neg_connector
+        posY = primitive.y_pos_connector
+        negY = primitive.y_neg_connector
+        size = getattr(primitive, 'physical_size', 2.0)
+        offset = size * 2
+        rotation_count = 1 if getattr(primitive, 'rotation_invariant', False) else 4
+
+        for rotation in range(rotation_count):
+            module_name = primitive.name + f"_b{rotation}"
+            module_data = primitive.data.copy()
+            module_obj = bpy.data.objects.new(module_name, module_data)
+
+            module_obj.x_pos_connector = posX
+            module_obj.x_neg_connector = negX
+            module_obj.y_pos_connector = posY
+            module_obj.y_neg_connector = negY
+            link_object_to_single_collection(module_obj, building_collection)
+
+            all_building_modules.append(
+                WFCModule(
+                    name=module_name,
+                    obj_source=module_obj,
+                    module_weight=1,
+                    pos_x=posX,
+                    neg_x=negX,
+                    pos_y=posY,
+                    neg_y=negY,
+                    physical_size=size,
+                    grid_category=GridCategory.BUILDING,
+                )
+            )
+            posX = module_obj.y_neg_connector
+            negX = module_obj.y_pos_connector
+            posY = module_obj.x_pos_connector
+            negY = module_obj.x_neg_connector
+            module_obj.location += (
+                starting_position
+                + Vector(((rotation * size + rotation * offset), (i * size + offset), 0))
+            )
+            module_obj.rotation_euler = (0, 0, radians(rotation * 90))
+
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in building_collection.objects:
+        obj.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+
+    bpy.context.scene["total_building_modules"] = len(all_building_modules)
+
+    for module in all_building_modules:
+        build_module_pairs(module, all_building_modules)
+
+    print(f"[WFC] Generated {len(all_building_modules)} building modules.")
+
+
+class OBJECT_OT_BuildBuildingModules(bpy.types.Operator):
+    """Generate WFC modules from building-category primitives (inner grid)"""
+    bl_idname = "object.build_building_modules"
+    bl_label = "Build Building Modules"
+
+    def execute(self, context):
+        clear_all_building_modules()
+        primitives = get_primitives_by_category(GridCategory.BUILDING)
+        if not primitives:
+            self.report({'WARNING'},
+                "No building-category primitives found. "
+                "Load a building library first (e.g. data/building_library.json).")
+            return {'CANCELLED'}
+        generate_building_modules()
+        self.report({'INFO'}, f"Generated {len(all_building_modules)} building modules.")
+        return {'FINISHED'}
+
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
     """Clear all Module Data and Meshes"""
@@ -350,7 +462,12 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
         layout.separator()
         layout.label(text="Debug Tools:")
         layout.operator("object.debug_building_plots")
-        
+
+        layout.separator()
+        layout.label(text="Inner Grid (Building):")
+        layout.operator("object.build_building_modules")
+        layout.operator("object.generate_building_inner_grid")
+
         obj = context.object
         if obj:
             layout.prop(obj, "remaining_modules")
@@ -501,6 +618,102 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
                 coll.objects.unlink(plane)
             debug_collection.objects.link(plane)
 
+class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
+    """Collapse building plot islands using building-category WFC modules (inner grid)"""
+    bl_idname = "object.generate_building_inner_grid"
+    bl_label = "Collapse Building Islands"
+
+    def execute(self, context):
+        import random
+        from .wfc_algorithm.core import WFCAlgorithm, get_lowest_entropy_cells
+
+        adapter = get_wfc_adapter()
+
+        # ── Guard: outer grid must be collapsed first ──────────────────────
+        if adapter.algorithm is None:
+            self.report({'ERROR'}, "No outer grid found. Run Full Collapse first.")
+            return {'CANCELLED'}
+        if len(adapter.algorithm.grid.uncollapsed_cells) > 0:
+            self.report({'ERROR'}, "Outer grid not fully collapsed. Run Full Collapse first.")
+            return {'CANCELLED'}
+
+        # ── Guard: building modules must exist ────────────────────────────
+        if not all_building_modules:
+            self.report({'ERROR'},
+                "No building modules found. "
+                "Load building primitives then press 'Build Building Modules'.")
+            return {'CANCELLED'}
+
+        # ── Extract & group building plot islands ──────────────────────────
+        building_plots = adapter.extract_plots_from_grid(
+            plot_type='building', vertex_group_name='building_plot'
+        )
+        if not building_plots:
+            self.report({'WARNING'},
+                "No building plots found. Make sure collapsed modules have "
+                "'building_plot' vertex groups.")
+            return {'CANCELLED'}
+
+        islands = adapter.group_plot_islands(building_plots, plot_type='building')
+
+        # ── Set up building algorithm modules (done once for all islands) ──
+        build_adapter = BlenderWFCAdapter()
+        algo_building_modules = build_adapter.setup_from_blender_modules(all_building_modules)
+        build_adapter.build_algorithm_module_pairs(algo_building_modules)
+
+        # ── Resolve resolution_multiplier from first building module ───────
+        resolution = 4  # default
+        if all_building_modules:
+            res = getattr(all_building_modules[0].obj_source, 'resolution_multiplier', None)
+            if res and res > 0:
+                resolution = res
+
+        total_collapsed = 0
+        for island in islands:
+            inner_grid, _ = adapter.create_inner_grid_for_island(
+                island,
+                resolution_multiplier=resolution,
+                inner_modules=algo_building_modules,
+            )
+            build_adapter.build_algorithm_module_pairs(algo_building_modules)
+
+            # Collapse the inner grid fully
+            inner_wfc = WFCAlgorithm(inner_grid)
+            uncollapsed = inner_grid.get_uncollapsed_cells()
+            while uncollapsed:
+                cell_to_collapse = random.choice(get_lowest_entropy_cells(uncollapsed))
+                inner_wfc.collapse_cell(cell_to_collapse)
+                inner_wfc.propagate(cell_to_collapse)
+                uncollapsed.remove(cell_to_collapse)
+                total_collapsed += 1
+
+            # Visualize collapsed inner grid cells
+            bounds = island['combined_bounds']
+            origin_x = bounds[0]
+            origin_y = bounds[1]
+            cell_size = all_building_modules[0].physical_size if all_building_modules else 2.0
+            grid_collection = get_collection_by_name(CollectionNames.Grid.value)
+            for cell in inner_grid.cells.values():
+                if cell.is_collapsed and cell.possible_modules:
+                    algo_mod = cell.possible_modules[0]
+                    wfc_mod = build_adapter.blender_module_map.get(algo_mod.id)
+                    if wfc_mod and wfc_mod.obj_source:
+                        loc = (
+                            origin_x + cell.x * cell_size,
+                            origin_y + cell.y * cell_size,
+                            0.05,
+                        )
+                        result_obj = duplicate_and_move_and_return(wfc_mod.obj_source, loc)
+                        result_obj.name = (
+                            f"bld_{island['island_id']}_{cell.x:02d}_{cell.y:02d}"
+                        )
+                        link_object_to_single_collection(result_obj, grid_collection)
+
+        self.report({'INFO'},
+            f"Collapsed {total_collapsed} inner-grid cells across {len(islands)} island(s).")
+        return {'FINISHED'}
+
+
 class OBJECT_OT_DebugCollapse(bpy.types.Operator):
     """Collapse a single cell (useful for debugging step-by-step)"""
     bl_idname = "object.debug_collapse"
@@ -614,12 +827,14 @@ OPERATORS = [
                 OBJECT_OT_AddWfcPrimitives,
                 OBJECT_OT_ClearWfcPrimitives,
                 OBJECT_OT_BuildWfcModules,
+                OBJECT_OT_BuildBuildingModules,
                 OBJECT_OT_ClearWfcModules,
                 OBJECT_OT_BuildWFCGrid,
                 OBJECT_OT_ClearWFCGrid,
                 OBJECT_OT_DebugCollapse,
                 OBJECT_OT_FullCollapse,
                 OBJECT_OT_DebugBuildingPlots,
+                OBJECT_OT_GenerateBuildingInnerGrid,
                 OBJECT_OT_ShowDebugPlanes,
                 OBJECT_OT_HideDebugPlanes
             ] + COLLECTION_OPERATORS + PRIMITIVE_OPERATORS

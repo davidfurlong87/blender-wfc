@@ -26,14 +26,24 @@ except ImportError:
     from primitive_data_core import PrimitiveData
 
 
+# Default library file name for each grid category.
+# Used by load_primitives_by_category() to find the right file automatically.
+CATEGORY_LIBRARY_FILES: Dict[str, str] = {
+    'outer_grid':  'outer_grid_library.json',
+    'building':    'building_library.json',
+    'park':        'park_library.json',
+    'road_detail': 'road_detail_library.json',
+}
+
+
 class PrimitivePersistence:
     """
     Handles saving and loading primitives to/from JSON files
-    
+
     Supports both individual primitives and primitive libraries (collections
     of multiple primitives in a single file).
     """
-    
+
     def __init__(self, default_library_path: Optional[str] = None):
         """
         Initialize the persistence manager
@@ -296,6 +306,72 @@ class PrimitivePersistence:
         except Exception as e:
             errors.append(f"Unexpected error loading library: {str(e)}")
             return primitives, metadata, errors
+
+    def load_primitives_by_category(
+        self,
+        category: str,
+        data_dir: str,
+    ) -> Tuple[List[PrimitiveData], List[str]]:
+        """
+        Load all primitives for a given grid category from the default library file.
+
+        Looks up the standard library filename for *category* via
+        ``CATEGORY_LIBRARY_FILES``, resolves it relative to *data_dir*, then
+        calls ``load_primitive_library()`` and filters the result to only
+        include primitives whose ``grid_category`` matches *category*.
+
+        Args:
+            category:  Grid category string, e.g. ``'building'`` or
+                       ``'outer_grid'``.  Must be a key in
+                       ``CATEGORY_LIBRARY_FILES``.
+            data_dir:  Absolute path to the directory that contains the
+                       library JSON files (typically the addon's ``data/``
+                       folder).
+
+        Returns:
+            ``(primitives, errors)``
+
+            - *primitives*: List of ``PrimitiveData`` whose
+              ``grid_category == category``.  Empty on failure.
+            - *errors*: List of human-readable error / warning strings.
+
+        Example::
+
+            persistence = PrimitivePersistence()
+            data_dir = os.path.join(os.path.dirname(__file__), 'data')
+            prims, errs = persistence.load_primitives_by_category('building', data_dir)
+        """
+        errors: List[str] = []
+
+        filename = CATEGORY_LIBRARY_FILES.get(category)
+        if filename is None:
+            errors.append(
+                f"Unknown category '{category}'. "
+                f"Known categories: {list(CATEGORY_LIBRARY_FILES.keys())}"
+            )
+            return [], errors
+
+        filepath = os.path.join(data_dir, filename)
+        if not os.path.exists(filepath):
+            errors.append(
+                f"Library file not found for category '{category}': {filepath}"
+            )
+            return [], errors
+
+        all_primitives, _meta, load_errors = self.load_primitive_library(filepath)
+        errors.extend(load_errors)
+
+        # Secondary filter — the library *should* already be category-specific,
+        # but this guards against mixed-category files in the future.
+        filtered = [p for p in all_primitives if p.grid_category == category]
+
+        if all_primitives and not filtered:
+            errors.append(
+                f"Library '{filename}' contained {len(all_primitives)} primitive(s) "
+                f"but none matched category '{category}'."
+            )
+
+        return filtered, errors
 
     def list_primitives_in_library(self, filepath: str) -> Tuple[List[Dict[str, str]], List[str]]:
         """
