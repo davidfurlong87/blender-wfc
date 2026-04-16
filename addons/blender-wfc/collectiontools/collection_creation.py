@@ -107,6 +107,33 @@ def get_or_create_collection(collection_name, b_delete_objects=False, parent=Non
         attach_to.children.link(collection)
         return collection
 
+def ensure_collection(collection_name, parent=None):
+    """Get a collection by name, creating it if it does not exist.
+
+    This is the **recommended function for all new code**.  It is the
+    crash-safe replacement for bare ``get_collection_by_name()`` calls.
+
+    Differences from ``get_or_create_collection()``:
+
+    - No ``b_delete_objects`` parameter — never destructive.
+    - Name makes the intent explicit: "make sure this collection exists,
+      then give it to me".
+    - Guaranteed to never raise and never return ``None``.
+
+    Args:
+        collection_name: Name of the collection to get or create.
+        parent: Optional parent ``bpy.types.Collection``.  When provided
+            and the collection does not yet exist, it is created as a child
+            of *parent* rather than the scene root.  Existing collections
+            are returned as-is and are never re-parented silently.
+
+    Returns:
+        The existing or newly created ``bpy.types.Collection``.  Never
+        ``None``.
+    """
+    return get_or_create_collection(collection_name, parent=parent)
+
+
 def move_objects_to_new_collection(collection_name):
     bpy.ops.object.move_to_collection(collection_index=0, is_new=True, new_collection_name=collection_name)
 

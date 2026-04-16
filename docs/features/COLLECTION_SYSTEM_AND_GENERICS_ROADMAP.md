@@ -96,11 +96,15 @@ symmetric naming helpers):
 - [x] Test: 20/20 checks pass (`tests/verify_task_a2.py`)
 
 ### A3 — Add `ensure_collection(name, parent=None)`
-**File:** `addons/blender-wfc/collectiontools/collection_creation.py`
-- [ ] Universal crash-safe getter — replaces every bare `get_collection_by_name()` call
-- [ ] If collection exists → return it
-- [ ] If missing → create it (and any missing parents) → return it
-- [ ] Never raises; never returns `None`
+**Files:** `addons/blender-wfc/collectiontools/collection_creation.py`,
+`addons/blender-wfc/collectiontools/__init__.py`
+- [x] Added `ensure_collection(collection_name, parent=None)` after `get_or_create_collection`
+- [x] Delegates to `get_or_create_collection` — no `b_delete_objects` footgun
+- [x] Existing collection → returned as-is, never re-parented
+- [x] Missing collection → created under `parent` (or scene root if `None`)
+- [x] Guaranteed to never raise and never return `None`
+- [x] Exported from `collectiontools/__init__.py` for clean package-level imports
+- [x] Test: 24/24 checks pass (`tests/verify_task_a3.py`)
 
 ### A4 — Add `ensure_primitives_collection` / `ensure_modules_collection`
 **File:** `addons/blender-wfc/collectiontools/collection_creation.py`
