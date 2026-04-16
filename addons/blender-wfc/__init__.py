@@ -618,6 +618,7 @@ class OBJECT_OT_DebugBuildingPlots(bpy.types.Operator):
                 coll.objects.unlink(plane)
             debug_collection.objects.link(plane)
 
+# TODO: Sufficient now, but the inner grid process should be generic in the future.
 class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
     """Collapse building plot islands using building-category WFC modules (inner grid)"""
     bl_idname = "object.generate_building_inner_grid"
@@ -687,11 +688,15 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
                 uncollapsed.remove(cell_to_collapse)
                 total_collapsed += 1
 
-            # Visualize collapsed inner grid cells
+            # Visualize collapsed inner grid cells.
+            # bounds[0/1] are the outer *edges* of the island (corner, not cell centre).
+            # Building module objects are centred at their origin, so each must be
+            # placed at the centre of its inner cell = edge + cell_size / 2.
             bounds = island['combined_bounds']
-            origin_x = bounds[0]
-            origin_y = bounds[1]
             cell_size = all_building_modules[0].physical_size if all_building_modules else 2.0
+            half = cell_size / 2
+            origin_x = bounds[0] + half
+            origin_y = bounds[1] + half
             grid_collection = get_collection_by_name(CollectionNames.Grid.value)
             for cell in inner_grid.cells.values():
                 if cell.is_collapsed and cell.possible_modules:
