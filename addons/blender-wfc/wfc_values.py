@@ -5,12 +5,65 @@ bl_category_name = "wfc"
 
 
 class CollectionNames(Enum):
-    Primitives       = "WFC_Primitives"
-    UserPrimitives   = "WFC_User_Primitives"
-    Modules          = "WFC_Modules"
-    BuildingModules  = "WFC_Building_Modules"  # Inner-grid modules for building category
-    Grid             = "WFC_Grid"
-    Debug            = "WFC_Debug"
+    """The five static WFC collections that always exist.
+
+    All category-specific sub-collections are derived dynamically via the three
+    naming helpers below (primitives_collection_for, modules_collection_for,
+    grid_collection_for).  Do NOT add per-category entries here.
+
+    Tree::
+
+        WFC                         ← Root
+        ├── WFC_Primitives          ← Primitives  (parent, no direct objects)
+        │   └── WFC_Primitives_{category}          (dynamic)
+        ├── WFC_Modules             ← Modules     (parent, no direct objects)
+        │   └── WFC_Modules_{category}             (dynamic)
+        ├── WFC_Grid                ← Grid        (parent, no direct objects)
+        │   └── WFC_Grid_{category}               (dynamic, any depth)
+        └── WFC_Debug               ← Debug
+    """
+    Root       = "WFC"
+    Primitives = "WFC_Primitives"
+    Modules    = "WFC_Modules"
+    Grid       = "WFC_Grid"
+    Debug      = "WFC_Debug"
+
+
+def primitives_collection_for(category: str) -> str:
+    """Return the Blender collection name for primitives of *category*.
+
+    Example::
+
+        primitives_collection_for('building')   # → 'WFC_Primitives_building'
+        primitives_collection_for('outer_grid') # → 'WFC_Primitives_outer_grid'
+    """
+    return f"WFC_Primitives_{category}"
+
+
+def modules_collection_for(category: str) -> str:
+    """Return the Blender collection name for WFC modules of *category*.
+
+    Example::
+
+        modules_collection_for('building')   # → 'WFC_Modules_building'
+        modules_collection_for('outer_grid') # → 'WFC_Modules_outer_grid'
+    """
+    return f"WFC_Modules_{category}"
+
+
+def grid_collection_for(category: str) -> str:
+    """Return the Blender collection name for grid output of *category*.
+
+    Works for any grid depth — outer grids, inner grids, and future
+    inner-within-inner grids all follow the identical pattern.
+
+    Example::
+
+        grid_collection_for('outer_grid')   # → 'WFC_Grid_outer_grid'
+        grid_collection_for('building')     # → 'WFC_Grid_building'
+        grid_collection_for('room_detail')  # → 'WFC_Grid_room_detail'
+    """
+    return f"WFC_Grid_{category}"
 
 
 class GridCategory:

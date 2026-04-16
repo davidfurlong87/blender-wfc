@@ -72,17 +72,19 @@ symmetric naming helpers):
 ## 📅 Phase A — Dynamic Collection System
 
 ### A1 — Simplify `CollectionNames` + naming helpers
-**File:** `addons/blender-wfc/wfc_values.py`
-- [ ] Remove all per-category entries from `CollectionNames` enum
-      (including any `GridOuter` / `GridInner` entries)
-- [ ] Keep exactly **5 static names**: `Root`, `Primitives`, `Modules`,
-      `Grid`, `Debug`
-- [ ] Add three symmetric pure functions — one per tree branch:
-  - [ ] `primitives_collection_for(category: str) → "WFC_Primitives_{category}"`
-  - [ ] `modules_collection_for(category: str) → "WFC_Modules_{category}"`
-  - [ ] `grid_collection_for(category: str) → "WFC_Grid_{category}"`
-- [ ] All three follow the identical pattern; adding a new grid depth
-      (inner-within-inner) requires no further changes here
+**Files:** `addons/blender-wfc/wfc_values.py`, `addons/blender-wfc/__init__.py`,
+`addons/blender-wfc/wfc_collections.py`
+- [x] Removed per-category entries (`UserPrimitives`, `BuildingModules`) from `CollectionNames`
+- [x] Kept exactly **5 static names**: `Root`, `Primitives`, `Modules`, `Grid`, `Debug`
+- [x] Added three symmetric pure functions:
+  - [x] `primitives_collection_for(category: str) -> "WFC_Primitives_{category}"`
+  - [x] `modules_collection_for(category: str) -> "WFC_Modules_{category}"`
+  - [x] `grid_collection_for(category: str) -> "WFC_Grid_{category}"`
+- [x] Replaced `CollectionNames.BuildingModules` call sites in `__init__.py`
+      with `modules_collection_for(GridCategory.BUILDING)`
+- [x] Replaced `CollectionNames.UserPrimitives` in `wfc_collections.py`
+      with a plain string literal (legacy, retired in A12)
+- [x] Test: 35/35 checks pass (`tests/verify_task_a1.py`)
 
 ### A2 — Fix `get_or_create_collection` to accept a parent
 **File:** `addons/blender-wfc/collectiontools/collection_creation.py`

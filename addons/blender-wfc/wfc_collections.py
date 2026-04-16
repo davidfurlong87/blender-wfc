@@ -31,8 +31,9 @@ class OBJECT_OT_BuildDefaultCollections(bpy.types.Operator):
             CollectionNames.Modules.value,
             CollectionNames.Primitives.value,
             CollectionNames.Debug.value,
-            CollectionNames.UserPrimitives.value
-
+            # Legacy collection retained as a plain string; will be removed in A12
+            # when "Build Collections" is retired and the full tree is auto-created.
+            "WFC_User_Primitives",
         ]
         for collection_to_create in collections_to_create:
             build_or_return_collection(collection_to_create, True)

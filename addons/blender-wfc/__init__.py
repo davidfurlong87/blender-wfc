@@ -62,7 +62,10 @@ if "bpy" in locals():
 # ============================================================================
 # All imports happen AFTER the reload block to ensure we get the latest versions
 
-from .wfc_values import bl_category_name, CollectionNames, GridCategory
+from .wfc_values import (
+    bl_category_name, CollectionNames, GridCategory,
+    primitives_collection_for, modules_collection_for, grid_collection_for,
+)
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
 # NEW: Connector registry (Task 1B.3)
@@ -306,7 +309,7 @@ def clear_all_building_modules():
     """Remove building module Blender objects and clear the in-memory list."""
     all_building_modules.clear()
     delete_objects_and_meshes(
-        get_all_objects_from_collection(CollectionNames.BuildingModules.value)
+        get_all_objects_from_collection(modules_collection_for(GridCategory.BUILDING))
     )
 
 
@@ -319,7 +322,7 @@ def generate_building_modules():
     These modules are used for inner-grid WFC collapse on building plot islands.
     """
     from .collectiontools.collection_creation import get_or_create_collection
-    building_collection = get_or_create_collection(CollectionNames.BuildingModules.value)
+    building_collection = get_or_create_collection(modules_collection_for(GridCategory.BUILDING))
     all_building_modules.clear()
 
     building_primitives = get_primitives_by_category(GridCategory.BUILDING)
