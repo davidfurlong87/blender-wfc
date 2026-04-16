@@ -106,12 +106,16 @@ symmetric naming helpers):
 - [x] Exported from `collectiontools/__init__.py` for clean package-level imports
 - [x] Test: 24/24 checks pass (`tests/verify_task_a3.py`)
 
-### A4 — Add `ensure_primitives_collection` / `ensure_modules_collection`
-**File:** `addons/blender-wfc/collectiontools/collection_creation.py`
-- [ ] `ensure_primitives_collection(category)` — composes `ensure_collection`
-      + `primitives_collection_for` + parent chain (Root → Primitives → leaf)
-- [ ] `ensure_modules_collection(category)` — same pattern for modules
-- [ ] These are the single call each operator makes; one line, any category
+### A4 — Add `ensure_primitives_collection` / `ensure_modules_collection` / `ensure_grid_collection`
+**File:** `addons/blender-wfc/collectiontools/__init__.py`
+- [x] `ensure_primitives_collection(category)` → WFC → WFC_Primitives → WFC_Primitives_{category}
+- [x] `ensure_modules_collection(category)`    → WFC → WFC_Modules    → WFC_Modules_{category}
+- [x] `ensure_grid_collection(category)`       → WFC → WFC_Grid       → WFC_Grid_{category}
+- [x] All three are idempotent — calling twice returns the same object, no duplicates
+- [x] All three share the same `WFC` root collection (verified by test)
+- [x] `ensure_grid_collection` works for any arbitrary category string (any depth)
+- [x] Imported from `wfc_values` absolutely — works in both Blender and test contexts
+- [x] Test: 34/34 checks pass (`tests/verify_task_a4.py`)
 
 ### A5 — Replace module globals with `_modules_by_category` dict
 **File:** `addons/blender-wfc/__init__.py`
