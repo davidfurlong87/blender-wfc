@@ -159,8 +159,8 @@ def clear_all_primitives():
         )
 
 def clear_all_modules():
-    all_modules.clear()
-    delete_objects_and_meshes(get_all_objects_from_collection(CollectionNames.Modules.value))
+    """Backward-compat shim. Prefer clear_modules_for_category(GridCategory.OUTER_GRID)."""
+    clear_modules_for_category(GridCategory.OUTER_GRID)
 
 def clear_all_cells():
     delete_objects_and_meshes(
@@ -232,11 +232,53 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
             generate_modules()
         return {'FINISHED'}
 
-all_modules = []
+# ── Module storage (keyed by category) ───────────────────────────────────────
+_modules_by_category: dict = {}
+
+# Backward-compat aliases — these ARE the list objects stored in the dict.
+# Mutate only via .append() / .clear(); never reassign these names.
+# New code should call get_modules_for_category(category) instead.
+all_modules          = _modules_by_category.setdefault(GridCategory.OUTER_GRID, [])
+all_building_modules = _modules_by_category.setdefault(GridCategory.BUILDING,   [])
+
+
+def get_modules_for_category(category: str) -> list:
+    """Return the live WFCModule list for *category*, creating it if needed.
+
+    The returned list is the same object stored in ``_modules_by_category``,
+    so mutations (append / clear) are immediately reflected everywhere.
+
+    Args:
+        category: A :class:`~wfc_values.GridCategory` string, e.g.
+            ``'outer_grid'`` or ``'building'``.
+
+    Returns:
+        Mutable list of :class:`~wfc_classes.WFCModule` instances.
+    """
+    return _modules_by_category.setdefault(category, [])
+
+
+def clear_modules_for_category(category: str) -> None:
+    """Clear the in-memory module list and delete Blender objects for *category*.
+
+    Safe to call even when the category has never been populated — if the
+    list or collection does not yet exist, no error is raised.
+
+    Args:
+        category: A :class:`~wfc_values.GridCategory` string.
+    """
+    mods = _modules_by_category.get(category)
+    if mods is not None:
+        mods.clear()
+    col_name = modules_collection_for(category)
+    if check_collection_exists(col_name):
+        delete_objects_and_meshes(get_all_objects_from_collection(col_name))
+
 
 def generate_modules():
     modules_collection = get_collection_by_name(CollectionNames.Modules.value)
-    all_modules.clear()
+    mods = get_modules_for_category(GridCategory.OUTER_GRID)
+    mods.clear()
     starting_position = Vector((-50, -50, 0))
     for i, primitive in enumerate(get_all_primitives()):
         posX_placeholder = primitive.x_pos_connector
@@ -264,7 +306,7 @@ def generate_modules():
             module_obj.y_neg_connector = negY_placeholder
             link_object_to_single_collection(module_obj, modules_collection)
 
-            all_modules.append(
+            mods.append(
                 WFCModule(
                     name = module_name,
                     obj_source = module_obj,
@@ -290,27 +332,20 @@ def generate_modules():
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
     # TODO: probably move this into an operator
-    bpy.context.scene["total_modules"] = len(all_modules)
+    bpy.context.scene["total_modules"] = len(mods)
 
-    for module in all_modules:
-        build_module_pairs(module, all_modules)
-
-
-# ── Building-category module list (separate from outer-grid all_modules) ────
-all_building_modules = []
+    for module in mods:
+        build_module_pairs(module, mods)
 
 
 def get_building_modules():
-    """Return the list of WFCModule instances for the building grid category."""
-    return all_building_modules
+    """Backward-compat shim. Prefer get_modules_for_category(GridCategory.BUILDING)."""
+    return get_modules_for_category(GridCategory.BUILDING)
 
 
 def clear_all_building_modules():
-    """Remove building module Blender objects and clear the in-memory list."""
-    all_building_modules.clear()
-    delete_objects_and_meshes(
-        get_all_objects_from_collection(modules_collection_for(GridCategory.BUILDING))
-    )
+    """Backward-compat shim. Prefer clear_modules_for_category(GridCategory.BUILDING)."""
+    clear_modules_for_category(GridCategory.BUILDING)
 
 
 def generate_building_modules():
@@ -318,12 +353,13 @@ def generate_building_modules():
     Generate WFC modules for all building-category primitives in the scene.
 
     Mirrors generate_modules() but operates exclusively on primitives whose
-    grid_category == 'building' and stores results in WFC_Building_Modules.
+    grid_category == 'building' and stores results in WFC_Modules_building.
     These modules are used for inner-grid WFC collapse on building plot islands.
     """
-    from .collectiontools.collection_creation import get_or_create_collection
-    building_collection = get_or_create_collection(modules_collection_for(GridCategory.BUILDING))
-    all_building_modules.clear()
+    from .collectiontools import ensure_modules_collection
+    building_collection = ensure_modules_collection(GridCategory.BUILDING)
+    mods = get_modules_for_category(GridCategory.BUILDING)
+    mods.clear()
 
     building_primitives = get_primitives_by_category(GridCategory.BUILDING)
     if not building_primitives:
@@ -352,7 +388,7 @@ def generate_building_modules():
             module_obj.y_neg_connector = negY
             link_object_to_single_collection(module_obj, building_collection)
 
-            all_building_modules.append(
+            mods.append(
                 WFCModule(
                     name=module_name,
                     obj_source=module_obj,
@@ -380,12 +416,12 @@ def generate_building_modules():
         obj.select_set(True)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
-    bpy.context.scene["total_building_modules"] = len(all_building_modules)
+    bpy.context.scene["total_building_modules"] = len(mods)
 
-    for module in all_building_modules:
-        build_module_pairs(module, all_building_modules)
+    for module in mods:
+        build_module_pairs(module, mods)
 
-    print(f"[WFC] Generated {len(all_building_modules)} building modules.")
+    print(f"[WFC] Generated {len(mods)} building modules.")
 
 
 class OBJECT_OT_BuildBuildingModules(bpy.types.Operator):

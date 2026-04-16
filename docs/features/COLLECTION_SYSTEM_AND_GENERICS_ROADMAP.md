@@ -119,11 +119,14 @@ symmetric naming helpers):
 
 ### A5 — Replace module globals with `_modules_by_category` dict
 **File:** `addons/blender-wfc/__init__.py`
-- [ ] Replace `all_modules = []` and `all_building_modules = []` with
-      `_modules_by_category: dict[str, list[WFCModule]] = {}`
-- [ ] `get_modules_for_category(category)` returns `_modules_by_category.get(category, [])`
-- [ ] `clear_modules_for_category(category)` clears the dict entry + collection
-- [ ] Keep `all_modules` as a backward-compat alias for `get_modules_for_category('outer_grid')`
+- [x] `_modules_by_category: dict = {}` declared as single source of truth
+- [x] `all_modules` and `all_building_modules` are live aliases via `setdefault` — existing call sites unchanged
+- [x] `get_modules_for_category(category)` → `_modules_by_category.setdefault(category, [])`
+- [x] `clear_modules_for_category(category)` → clears list in-place + conditionally deletes Blender objects
+- [x] `clear_all_modules()` / `get_building_modules()` / `clear_all_building_modules()` → shims
+- [x] `generate_modules()` and `generate_building_modules()` use local `mods` variable
+- [x] `generate_building_modules()` upgraded to use `ensure_modules_collection`
+- [x] Test: 35/35 checks pass (`tests/verify_task_a5.py`)
 
 ### A6 — Merge generation functions → `generate_modules_for_category`
 **File:** `addons/blender-wfc/__init__.py`
