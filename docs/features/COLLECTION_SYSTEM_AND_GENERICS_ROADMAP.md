@@ -88,10 +88,12 @@ symmetric naming helpers):
 
 ### A2 — Fix `get_or_create_collection` to accept a parent
 **File:** `addons/blender-wfc/collectiontools/collection_creation.py`
-- [ ] Update signature: `get_or_create_collection(name, parent=None)`
-- [ ] When `parent` is provided, link the new collection under `parent`
-      instead of `bpy.context.scene.collection`
-- [ ] Existing call sites with no parent argument remain unchanged
+- [x] Updated signature: `get_or_create_collection(name, b_delete_objects=False, parent=None)`
+- [x] New collections link to `parent.children` when provided, else scene root
+- [x] Existing collections returned as-is — never silently re-parented
+- [x] All existing call sites (no parent arg) behaviour unchanged
+- [x] Hardcoded `bpy.context.scene.collection.children.link` replaced by `attach_to.children.link`
+- [x] Test: 20/20 checks pass (`tests/verify_task_a2.py`)
 
 ### A3 — Add `ensure_collection(name, parent=None)`
 **File:** `addons/blender-wfc/collectiontools/collection_creation.py`

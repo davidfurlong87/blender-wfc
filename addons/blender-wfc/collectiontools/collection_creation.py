@@ -80,14 +80,31 @@ def get_active_collection():
 def create_new_collection(collection_name):
     return bpy.data.collections.new(collection_name)
 
-def get_or_create_collection(collection_name, b_delete_objects=False):
+def get_or_create_collection(collection_name, b_delete_objects=False, parent=None):
+    """Get an existing Blender collection by name, or create it if missing.
+
+    Args:
+        collection_name: Name of the collection to get or create.
+        b_delete_objects: If True and the collection already exists, clear all
+            objects from it before returning.  Avoid in new code — prefer
+            explicit clear calls instead.
+        parent: Optional parent ``bpy.types.Collection``.  When provided and
+            the collection does *not* yet exist, the new collection is linked
+            as a child of *parent* rather than the scene root.  If the
+            collection already exists it is returned as-is; it is never
+            re-parented silently.
+
+    Returns:
+        The existing or newly created ``bpy.types.Collection``.
+    """
     if check_collection_exists(collection_name):
         if b_delete_objects:
             clear_collection(bpy.data.collections[collection_name])
         return get_collection_by_name(collection_name)
     else:
         collection = create_new_collection(collection_name)
-        bpy.context.scene.collection.children.link(collection)
+        attach_to = parent if parent is not None else bpy.context.scene.collection
+        attach_to.children.link(collection)
         return collection
 
 def move_objects_to_new_collection(collection_name):
