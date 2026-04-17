@@ -135,9 +135,9 @@ class OBJECT_OT_WFCClearAll(bpy.types.Operator):
         # Reset adapter
         reset_wfc_adapter()
 
-        # Rebuild primitives and modules
+        # Rebuild primitives and modules for all categories
         build_all_primitives()
-        generate_modules()
+        generate_modules_for_all_loaded_categories()
 
         # NEW: Use adapter to build grid instead of old build_wfc_grid()
         if len(all_modules) > 0:
@@ -238,15 +238,19 @@ def get_primitives_by_category(category: str):
 
 
 class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
-    """Build Modules from Primitive Data"""
+    """Regenerate modules for every loaded primitive category"""
     bl_idname = "object.build_wfc_modules"
     bl_label = "Re/Generate Modules"
 
     def execute(self, context):
-        clear_all_modules()
-        # prims = get_all_primitives()
-        if len(get_all_primitives()) > 0:
-            generate_modules()
+        categories = generate_modules_for_all_loaded_categories()
+        if not categories:
+            self.report({'WARNING'},
+                "No primitives loaded. Load a library first.")
+            return {'CANCELLED'}
+        total = sum(len(get_modules_for_category(cat)) for cat in categories)
+        self.report({'INFO'},
+            f"Generated {total} modules for: {', '.join(categories)}")
         return {'FINISHED'}
 
 # ── Module storage (keyed by category) ───────────────────────────────────────
@@ -409,22 +413,36 @@ def generate_building_modules():
     generate_modules_for_category(GridCategory.BUILDING)
 
 
-class OBJECT_OT_BuildBuildingModules(bpy.types.Operator):
-    """Generate WFC modules from building-category primitives (inner grid)"""
-    bl_idname = "object.build_building_modules"
-    bl_label = "Build Building Modules"
+def generate_modules_for_all_loaded_categories() -> list:
+    """Generate (or regenerate) modules for every category that has loaded primitives.
 
-    def execute(self, context):
-        clear_all_building_modules()
-        primitives = get_primitives_by_category(GridCategory.BUILDING)
-        if not primitives:
-            self.report({'WARNING'},
-                "No building-category primitives found. "
-                "Load a building library first (e.g. data/building_library.json).")
-            return {'CANCELLED'}
-        generate_building_modules()
-        self.report({'INFO'}, f"Generated {len(all_building_modules)} building modules.")
-        return {'FINISHED'}
+    Walks the ``WFC_Primitives`` child collections to discover all populated
+    categories dynamically — no hardcoded category list, no code changes
+    needed when a new category is introduced.
+
+    Clears existing modules for each discovered category before regenerating,
+    so this is safe to call repeatedly.
+
+    Returns:
+        List of category name strings that were processed.  Empty if no
+        primitives are loaded yet.
+    """
+    prefix = primitives_collection_for("")   # → "WFC_Primitives_"
+    prim_parent = bpy.data.collections.get(CollectionNames.Primitives.value)
+    if not prim_parent:
+        return []
+
+    categories = [
+        col.name[len(prefix):]
+        for col in prim_parent.children
+        if col.objects and col.name.startswith(prefix)
+    ]
+
+    for category in categories:
+        clear_modules_for_category(category)
+        generate_modules_for_category(category)
+
+    return categories
 
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
@@ -489,7 +507,6 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
 
         layout.separator()
         layout.label(text="Inner Grid (Building):")
-        layout.operator("object.build_building_modules")
         layout.operator("object.generate_building_inner_grid")
 
         obj = context.object
@@ -857,7 +874,6 @@ OPERATORS = [
                 OBJECT_OT_AddWfcPrimitives,
                 OBJECT_OT_ClearWfcPrimitives,
                 OBJECT_OT_BuildWfcModules,
-                OBJECT_OT_BuildBuildingModules,
                 OBJECT_OT_ClearWfcModules,
                 OBJECT_OT_BuildWFCGrid,
                 OBJECT_OT_ClearWFCGrid,
