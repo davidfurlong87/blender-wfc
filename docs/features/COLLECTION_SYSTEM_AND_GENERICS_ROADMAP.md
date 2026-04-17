@@ -155,9 +155,14 @@ symmetric naming helpers):
 
 ### A8 — Route load operator to category subcollections
 **File:** `addons/blender-wfc/primitive_ui.py`
-- [ ] Replace hardcoded `prim_collection` target with
-      `ensure_primitives_collection(prim_data.grid_category)`
-- [ ] Works for every known and unknown category without code changes
+- [x] **Library path**: `prim_collection` now resolved *per primitive* inside the loop via
+      `ensure_primitives_collection(prim_data.grid_category)` — different categories in one
+      library file automatically go into separate leaf collections
+- [x] **Single path**: replaced `collection=context.scene.collection` (scene root!) with
+      `ensure_primitives_collection(primitive_data.grid_category)`
+- [x] Removed old `try/except` block with hardcoded `get_or_create_collection(WFC_Primitives)`
+- [x] Works for every known and future category with zero code changes
+- [x] Test: 21/21 checks pass (`tests/verify_task_a8.py`)
 
 ### A9 — Fix `clear_*` functions to be crash-safe
 **File:** `addons/blender-wfc/__init__.py`

@@ -503,17 +503,14 @@ class OBJECT_OT_WFCLoadPrimitive(bpy.types.Operator):
                 self.report({'ERROR'}, "No primitives loaded from library")
                 return {'CANCELLED'}
 
-            # Resolve or create the WFC Primitives collection
-            try:
-                from .wfc_values import CollectionNames
-                from .collectiontools.collection_creation import get_or_create_collection
-                prim_collection = get_or_create_collection(CollectionNames.Primitives.value)
-            except Exception:
-                prim_collection = context.scene.collection
+            from .collectiontools import ensure_primitives_collection
 
             created = []
             spacing = 0.0
             for prim_data in primitives_list:
+                # Route each primitive into its own category subcollection:
+                # WFC → WFC_Primitives → WFC_Primitives_{grid_category}
+                prim_collection = ensure_primitives_collection(prim_data.grid_category)
                 loc = (spacing, -10.0, 0.0)
                 obj, create_errors = adapter.create_blender_object_from_primitive(
                     prim_data, collection=prim_collection, location=loc
@@ -547,9 +544,11 @@ class OBJECT_OT_WFCLoadPrimitive(bpy.types.Operator):
                 self.report({'ERROR'}, "Failed to load primitive data")
                 return {'CANCELLED'}
 
+            from .collectiontools import ensure_primitives_collection
+            prim_collection = ensure_primitives_collection(primitive_data.grid_category)
             new_obj, create_errors = adapter.create_blender_object_from_primitive(
                 primitive_data,
-                collection=context.scene.collection,
+                collection=prim_collection,
                 location=context.scene.cursor.location
             )
 

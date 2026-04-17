@@ -10,12 +10,23 @@ from .collection_creation import (
     duplicate_and_move_and_return,
 )
 
-from wfc_values import (
-    CollectionNames,
-    primitives_collection_for,
-    modules_collection_for,
-    grid_collection_for,
-)
+try:
+    # Relative import used when loaded as part of the Blender addon package.
+    from ..wfc_values import (
+        CollectionNames,
+        primitives_collection_for,
+        modules_collection_for,
+        grid_collection_for,
+    )
+except ImportError:
+    # Absolute import used in standalone test contexts where the addon root
+    # is on sys.path but there is no parent package.
+    from wfc_values import (  # type: ignore[no-redef]
+        CollectionNames,
+        primitives_collection_for,
+        modules_collection_for,
+        grid_collection_for,
+    )
 
 
 def ensure_primitives_collection(category: str):

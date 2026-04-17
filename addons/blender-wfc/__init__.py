@@ -164,9 +164,11 @@ def clear_all_modules():
     clear_modules_for_category(GridCategory.OUTER_GRID)
 
 def clear_all_cells():
-    delete_objects_and_meshes(
-        get_all_objects_from_collection(CollectionNames.Grid.value)
-    )
+    # Use .get() + .all_objects so this is safe even before WFC_Grid exists,
+    # and correctly clears objects in WFC_Grid_outer_grid etc. subcollections.
+    col = bpy.data.collections.get(CollectionNames.Grid.value)
+    if col is not None:
+        delete_objects_and_meshes(list(col.all_objects))
     # Note: Grid state is now managed by the adapter, not global variables
 
 class OBJECT_OT_UserPrimitives(bpy.types.Operator):
@@ -719,7 +721,8 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
             half = cell_size / 2
             origin_x = bounds[0] + half
             origin_y = bounds[1] + half
-            grid_collection = get_collection_by_name(CollectionNames.Grid.value)
+            from .collectiontools import ensure_grid_collection
+            grid_collection = ensure_grid_collection(GridCategory.BUILDING)
             for cell in inner_grid.cells.values():
                 if cell.is_collapsed and cell.possible_modules:
                     algo_mod = cell.possible_modules[0]

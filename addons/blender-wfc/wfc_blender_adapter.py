@@ -20,9 +20,10 @@ from .wfc_algorithm.enums import Axis
 from .collectiontools.collection_creation import (
     duplicate_and_move_and_return,
     link_object_to_single_collection,
-    get_collection_by_name
+    get_collection_by_name,
 )
-from .wfc_values import CollectionNames
+from .collectiontools import ensure_grid_collection
+from .wfc_values import CollectionNames, GridCategory
 from mathutils import Vector
 
 
@@ -181,7 +182,7 @@ class BlenderWFCAdapter:
             grid_height: Grid height in cells
             all_modules_count: Total number of modules (for initial entropy display)
         """
-        grid_collection = get_collection_by_name(CollectionNames.Grid.value)
+        grid_collection = ensure_grid_collection(GridCategory.OUTER_GRID)
         debug_mesh_size = self._get_cell_size()
 
         for x in range(grid_width):
@@ -235,7 +236,7 @@ class BlenderWFCAdapter:
         collapsed_cell_obj.name = f"{cell.x:02d}_{cell.y:02d}-{source_obj.name}"
 
         # Link to grid collection
-        grid_collection = get_collection_by_name(CollectionNames.Grid.value)
+        grid_collection = ensure_grid_collection(GridCategory.OUTER_GRID)
         link_object_to_single_collection(collapsed_cell_obj, grid_collection)
 
         # Remove debug plane (Step 4b: collapsed debug cell object is removed)

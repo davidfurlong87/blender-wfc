@@ -88,27 +88,28 @@ check("old all_building_modules.clear() in clear_all_building_modules gone",
 
 # ── Source: generate_modules uses mods local ────────────────────────────────
 print()
-print("Source: generate_modules internals:")
-check("generate_modules uses get_modules_for_category(OUTER_GRID)",
-      "mods = get_modules_for_category(GridCategory.OUTER_GRID)" in src)
-check("generate_modules uses mods.clear()",
-      # verify mods.clear() exists (used by both generators)
+print("Source: generate_modules_for_category internals (A6 unified function):")
+check("unified generator uses get_modules_for_category(category)",
+      "mods = get_modules_for_category(category)" in src)
+check("unified generator uses mods.clear()",
       "mods.clear()" in src)
-check("generate_modules uses mods.append",
+check("unified generator uses mods.append",
       "mods.append(" in src)
-check("generate_modules uses build_module_pairs(module, mods)",
+check("unified generator uses build_module_pairs(module, mods)",
       "build_module_pairs(module, mods)" in src)
+check("unified generator uses ensure_modules_collection(category)",
+      "ensure_modules_collection(category)" in src)
 
 
-# ── Source: generate_building_modules uses mods local ───────────────────────
+# ── Source: old per-category generator code gone ─────────────────────────────
 print()
-print("Source: generate_building_modules internals:")
-check("uses get_modules_for_category(BUILDING)",
-      "mods = get_modules_for_category(GridCategory.BUILDING)" in src)
-check("uses ensure_modules_collection instead of get_or_create_collection",
-      "ensure_modules_collection(GridCategory.BUILDING)" in src)
+print("Source: old per-category generator code gone:")
 check("old all_building_modules.append gone from generate fn",
       "all_building_modules.append(" not in src)
+check("generate_modules is now a one-line shim",
+      "generate_modules_for_category(GridCategory.OUTER_GRID)" in src)
+check("generate_building_modules is now a one-line shim",
+      "generate_modules_for_category(GridCategory.BUILDING)" in src)
 
 
 # ── Logic: alias stays in sync with dict ────────────────────────────────────
