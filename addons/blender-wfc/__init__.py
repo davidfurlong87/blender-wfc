@@ -65,6 +65,7 @@ if "bpy" in locals():
 from .wfc_values import (
     bl_category_name, CollectionNames, GridCategory,
     primitives_collection_for, modules_collection_for, grid_collection_for,
+    DEFAULT_GRID_SIZES,
 )
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
@@ -275,55 +276,88 @@ def clear_modules_for_category(category: str) -> None:
         delete_objects_and_meshes(get_all_objects_from_collection(col_name))
 
 
-def generate_modules():
-    modules_collection = get_collection_by_name(CollectionNames.Modules.value)
-    mods = get_modules_for_category(GridCategory.OUTER_GRID)
-    mods.clear()
-    starting_position = Vector((-50, -50, 0))
-    for i, primitive in enumerate(get_all_primitives()):
-        posX_placeholder = primitive.x_pos_connector
-        negX_placeholder = primitive.x_neg_connector
-        posY_placeholder = primitive.y_pos_connector
-        negY_placeholder = primitive.y_neg_connector
-        default_weight = 1
-        if (primitive.name == PrimitiveModules.Building.value):
-            default_weight = 1.05
+def generate_modules_for_category(category: str) -> None:
+    """Generate WFC modules for all primitives belonging to *category*.
 
-        # NEW: Read sizing metadata from primitive (Task 2B.1)
-        size = primitive.physical_size
+    This is the single, generic implementation that replaces the former
+    ``generate_modules()`` (outer-grid only) and ``generate_building_modules()``
+    (building only).  Both of those names are kept as one-line backward-compat
+    shims below.
+
+    The function:
+
+    1. Ensures the category-specific modules collection exists via
+       ``ensure_modules_collection(category)`` (lazy, crash-safe).
+    2. Fetches primitives via ``get_primitives_by_category(category)``.
+    3. Clears then repopulates ``_modules_by_category[category]`` in-place so
+       the ``all_modules`` / ``all_building_modules`` aliases stay in sync.
+    4. Respects ``rotation_invariant`` — one module if True, four if False.
+    5. Applies queued rotations via ``transform_apply`` after placement.
+    6. Builds connector pairs via ``build_module_pairs``.
+
+    Args:
+        category: A :class:`~wfc_values.GridCategory` string, e.g.
+            ``'outer_grid'`` or ``'building'``.
+    """
+    from .collectiontools import ensure_modules_collection
+    modules_collection = ensure_modules_collection(category)
+    mods = get_modules_for_category(category)
+    mods.clear()
+
+    primitives = get_primitives_by_category(category)
+    if not primitives:
+        print(f"[WFC] generate_modules_for_category({category!r}): no primitives found.")
+        return
+
+    starting_position = Vector((-50, -50, 0))
+
+    for i, primitive in enumerate(primitives):
+        posX = primitive.x_pos_connector
+        negX = primitive.x_neg_connector
+        posY = primitive.y_pos_connector
+        negY = primitive.y_neg_connector
+
+        default_weight = 1
+        if primitive.name == PrimitiveModules.Building.value:
+            default_weight = 1.05  # slight bias toward building tiles in outer grid
+
+        size = getattr(primitive, 'physical_size', DEFAULT_GRID_SIZES.get(category, 8.0))
         offset = size * 2
-        # NEW: Honor rotation_invariant — generate only 1 rotation if True (Task 2B.1)
-        rotation_count = 1 if primitive.rotation_invariant else 4
+        rotation_count = 1 if getattr(primitive, 'rotation_invariant', False) else 4
 
         for rotation in range(rotation_count):
-            module_name = primitive.name + f"_{rotation}"
+            module_name = f"{primitive.name}_{category}_{rotation}"
             module_data = primitive.data.copy()
             module_obj = bpy.data.objects.new(module_name, module_data)
 
-            module_obj.x_pos_connector = posX_placeholder
-            module_obj.x_neg_connector = negX_placeholder
-            module_obj.y_pos_connector = posY_placeholder
-            module_obj.y_neg_connector = negY_placeholder
+            module_obj.x_pos_connector = posX
+            module_obj.x_neg_connector = negX
+            module_obj.y_pos_connector = posY
+            module_obj.y_neg_connector = negY
             link_object_to_single_collection(module_obj, modules_collection)
 
             mods.append(
                 WFCModule(
-                    name = module_name,
-                    obj_source = module_obj,
+                    name=module_name,
+                    obj_source=module_obj,
                     module_weight=default_weight,
-                    pos_x = posX_placeholder,
-                    neg_x = negX_placeholder,
-                    pos_y = posY_placeholder,
-                    neg_y = negY_placeholder,
-                    physical_size = size,
-                    grid_category = getattr(primitive, 'grid_category', GridCategory.OUTER_GRID),
+                    pos_x=posX,
+                    neg_x=negX,
+                    pos_y=posY,
+                    neg_y=negY,
+                    physical_size=size,
+                    grid_category=category,
                 )
             )
-            posX_placeholder = module_obj.y_neg_connector
-            negX_placeholder = module_obj.y_pos_connector
-            posY_placeholder = module_obj.x_pos_connector
-            negY_placeholder = module_obj.x_neg_connector
-            module_obj.location += starting_position + Vector(((rotation * size + (rotation * offset)), (i * size + offset), 0))
+            posX = module_obj.y_neg_connector
+            negX = module_obj.y_pos_connector
+            posY = module_obj.x_pos_connector
+            negY = module_obj.x_neg_connector
+            module_obj.location += starting_position + Vector((
+                rotation * size + rotation * offset,
+                i * size + offset,
+                0,
+            ))
             module_obj.rotation_euler = (0, 0, radians(rotation * 90))
 
     bpy.ops.object.select_all(action='DESELECT')
@@ -331,11 +365,17 @@ def generate_modules():
         obj.select_set(True)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
-    # TODO: probably move this into an operator
-    bpy.context.scene["total_modules"] = len(mods)
+    bpy.context.scene[f"total_{category}_modules"] = len(mods)
 
     for module in mods:
         build_module_pairs(module, mods)
+
+    print(f"[WFC] generate_modules_for_category({category!r}): {len(mods)} modules generated.")
+
+
+def generate_modules():
+    """Backward-compat shim. Prefer generate_modules_for_category(GridCategory.OUTER_GRID)."""
+    generate_modules_for_category(GridCategory.OUTER_GRID)
 
 
 def get_building_modules():
@@ -349,79 +389,8 @@ def clear_all_building_modules():
 
 
 def generate_building_modules():
-    """
-    Generate WFC modules for all building-category primitives in the scene.
-
-    Mirrors generate_modules() but operates exclusively on primitives whose
-    grid_category == 'building' and stores results in WFC_Modules_building.
-    These modules are used for inner-grid WFC collapse on building plot islands.
-    """
-    from .collectiontools import ensure_modules_collection
-    building_collection = ensure_modules_collection(GridCategory.BUILDING)
-    mods = get_modules_for_category(GridCategory.BUILDING)
-    mods.clear()
-
-    building_primitives = get_primitives_by_category(GridCategory.BUILDING)
-    if not building_primitives:
-        print("[WFC] generate_building_modules: no building-category primitives found.")
-        return
-
-    starting_position = Vector((-50, -100, 0))  # separate display area from outer modules
-
-    for i, primitive in enumerate(building_primitives):
-        posX = primitive.x_pos_connector
-        negX = primitive.x_neg_connector
-        posY = primitive.y_pos_connector
-        negY = primitive.y_neg_connector
-        size = getattr(primitive, 'physical_size', 2.0)
-        offset = size * 2
-        rotation_count = 1 if getattr(primitive, 'rotation_invariant', False) else 4
-
-        for rotation in range(rotation_count):
-            module_name = primitive.name + f"_b{rotation}"
-            module_data = primitive.data.copy()
-            module_obj = bpy.data.objects.new(module_name, module_data)
-
-            module_obj.x_pos_connector = posX
-            module_obj.x_neg_connector = negX
-            module_obj.y_pos_connector = posY
-            module_obj.y_neg_connector = negY
-            link_object_to_single_collection(module_obj, building_collection)
-
-            mods.append(
-                WFCModule(
-                    name=module_name,
-                    obj_source=module_obj,
-                    module_weight=1,
-                    pos_x=posX,
-                    neg_x=negX,
-                    pos_y=posY,
-                    neg_y=negY,
-                    physical_size=size,
-                    grid_category=GridCategory.BUILDING,
-                )
-            )
-            posX = module_obj.y_neg_connector
-            negX = module_obj.y_pos_connector
-            posY = module_obj.x_pos_connector
-            negY = module_obj.x_neg_connector
-            module_obj.location += (
-                starting_position
-                + Vector(((rotation * size + rotation * offset), (i * size + offset), 0))
-            )
-            module_obj.rotation_euler = (0, 0, radians(rotation * 90))
-
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in building_collection.objects:
-        obj.select_set(True)
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-
-    bpy.context.scene["total_building_modules"] = len(mods)
-
-    for module in mods:
-        build_module_pairs(module, mods)
-
-    print(f"[WFC] Generated {len(mods)} building modules.")
+    """Backward-compat shim. Prefer generate_modules_for_category(GridCategory.BUILDING)."""
+    generate_modules_for_category(GridCategory.BUILDING)
 
 
 class OBJECT_OT_BuildBuildingModules(bpy.types.Operator):

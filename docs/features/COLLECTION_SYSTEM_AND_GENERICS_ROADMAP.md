@@ -130,12 +130,18 @@ symmetric naming helpers):
 
 ### A6 — Merge generation functions → `generate_modules_for_category`
 **File:** `addons/blender-wfc/__init__.py`
-- [ ] Replace `generate_modules()` and `generate_building_modules()` with
-      `generate_modules_for_category(category: str)`
-- [ ] Reads primitives via `get_primitives_by_category(category)`
-- [ ] Writes to `ensure_modules_collection(category)`
-- [ ] Populates `_modules_by_category[category]`
-- [ ] Old names become one-line shims calling the generic function
+- [x] `generate_modules_for_category(category: str)` — single implementation for all categories
+- [x] Uses `ensure_modules_collection(category)` — lazy, crash-safe (no bare `get_collection_by_name`)
+- [x] Uses `get_primitives_by_category(category)` — filtered by category
+- [x] Module names include category: `{name}_{category}_{rotation}` — no `_b` hack needed
+- [x] Uses `DEFAULT_GRID_SIZES.get(category, 8.0)` as fallback for `physical_size`
+- [x] Scene property key: `f"total_{category}_modules"` — generic
+- [x] `generate_modules()` → one-line shim for `OUTER_GRID`
+- [x] `generate_building_modules()` → one-line shim for `BUILDING`
+- [x] Removed: `_b{rotation}` naming, `(-50, -100, 0)` starting position, hardcoded `total_building_modules` key
+- [x] `DEFAULT_GRID_SIZES` added to `wfc_values` import in `__init__.py`
+- [x] All operator call sites unchanged (still call shim names)
+- [x] Test: 28/28 checks pass (`tests/verify_task_a6.py`)
 
 ### A7 — Update `get_all_primitives` + `get_primitives_by_category`
 **File:** `addons/blender-wfc/__init__.py`
