@@ -198,27 +198,41 @@ class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
         return {'FINISHED'}
 
 # TODO: Currently coming from collection, make it code first. 
-# TODO: ALso check if there's a mismatch between code and mesh collection for all of these methods
 def get_all_primitives():
-    return get_all_objects_from_collection(CollectionNames.Primitives.value)
+    """Return all primitive objects across every category subcollection.
+
+    Uses ``WFC_Primitives.all_objects`` which traverses child collections
+    automatically, so objects stored in ``WFC_Primitives_outer_grid``,
+    ``WFC_Primitives_building``, etc. are all included without any explicit
+    category filtering.
+
+    Returns an empty list (never raises) when the parent collection does not
+    yet exist.
+    """
+    col = bpy.data.collections.get(CollectionNames.Primitives.value)
+    if col is None:
+        return []
+    return list(col.all_objects)
 
 
 def get_primitives_by_category(category: str):
-    """Return all primitive objects belonging to the given grid category.
+    """Return all primitive objects for *category* from its dedicated subcollection.
 
-    Filters the full primitives collection by the grid_category Object property.
-    Use GridCategory constants from wfc_values to avoid bare string literals.
+    Collection membership encodes the category — no property scan needed.
+    Uses ``ensure_primitives_collection`` so the three-level chain
+    (WFC → WFC_Primitives → WFC_Primitives_{category}) is created lazily on
+    first access and the call never raises.
 
     Args:
-        category: Grid category string, e.g. GridCategory.BUILDING
+        category: A :class:`~wfc_values.GridCategory` string such as
+            ``'outer_grid'`` or ``'building'``.
 
     Returns:
-        List of bpy.types.Object whose grid_category matches
-
-    Example:
-        building_prims = get_primitives_by_category(GridCategory.BUILDING)
+        List of :class:`bpy.types.Object` in ``WFC_Primitives_{category}``.
     """
-    return [p for p in get_all_primitives() if p.grid_category == category]
+    from .collectiontools import ensure_primitives_collection
+    col = ensure_primitives_collection(category)
+    return list(col.objects)
 
 
 class OBJECT_OT_BuildWfcModules(bpy.types.Operator):

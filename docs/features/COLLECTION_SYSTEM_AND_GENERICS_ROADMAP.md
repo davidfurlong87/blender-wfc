@@ -145,10 +145,13 @@ symmetric naming helpers):
 
 ### A7 — Update `get_all_primitives` + `get_primitives_by_category`
 **File:** `addons/blender-wfc/__init__.py`
-- [ ] `get_all_primitives()` → `collection.all_objects` on `WFC_Primitives`
-      (traverses subcollections automatically)
-- [ ] `get_primitives_by_category(cat)` → `ensure_primitives_collection(cat).objects`
-      (membership encodes category; no property filter needed)
+- [x] `get_all_primitives()` → `bpy.data.collections.get(...).all_objects` — traverses all
+      category subcollections automatically; returns `[]` (never raises) if parent missing
+- [x] `get_primitives_by_category(cat)` → `ensure_primitives_collection(cat).objects` —
+      collection membership encodes category; no property scan needed
+- [x] Old `get_all_objects_from_collection(CollectionNames.Primitives.value)` call removed
+- [x] Old `p.grid_category == category` property filter removed
+- [x] Test: 22/22 checks pass (`tests/verify_task_a7.py`)
 
 ### A8 — Route load operator to category subcollections
 **File:** `addons/blender-wfc/primitive_ui.py`
