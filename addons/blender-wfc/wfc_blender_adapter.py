@@ -760,7 +760,14 @@ class BlenderWFCAdapter:
         return False
 
     def _calculate_island_bounds(self, island_plots):
-        """Calculate combined bounding box for an island"""
+        """Calculate combined bounding box for an island.
+
+        Each ``world_pos`` in *island_plots* is the anchor origin of an outer
+        grid cell (= its visual centre, since modules are meshed centred on
+        their local origin).  We therefore expand outward by half the outer
+        cell size to reach the true outer edge of the island, giving a bounds
+        rectangle that exactly covers the island footprint.
+        """
         if not island_plots:
             return (0, 0, 0, 0)
 
@@ -769,20 +776,23 @@ class BlenderWFCAdapter:
         max_x = max(plot['world_pos'].x for plot in island_plots)
         max_y = max(plot['world_pos'].y for plot in island_plots)
 
-        # Expand by plot size (assuming 2x2 plots)
-        plot_half_size = 1.0  # Half of 2x2 plot
-        return (min_x - plot_half_size, min_y - plot_half_size,
-                max_x + plot_half_size, max_y + plot_half_size)
+        # Expand by half the outer cell size so the bounds reach the true outer
+        # edges of the island.  (Previously this used 1.0 = half of a 2×2 face,
+        # which was far too small and produced a mis-aligned, under-sized inner grid.)
+        half_outer = self._get_cell_size() / 2
+        return (min_x - half_outer, min_y - half_outer,
+                max_x + half_outer, max_y + half_outer)
 
     def _calculate_island_grid_size(self, bounds):
-        """Calculate grid size in outer cells for an island"""
-        width = bounds[2] - bounds[0]
+        """Calculate grid size in outer cells for an island."""
+        width  = bounds[2] - bounds[0]
         height = bounds[3] - bounds[1]
 
-        # Convert to outer cell count
-        cell_size = self._get_cell_size()
-        grid_width = max(1, int(width / cell_size))
-        grid_height = max(1, int(height / cell_size))
+        # Use round() rather than int() to avoid floating-point truncation
+        # (e.g. 7.9999 / 8.0 → 0 with int(), but 1 with round()).
+        cell_size   = self._get_cell_size()
+        grid_width  = max(1, round(width  / cell_size))
+        grid_height = max(1, round(height / cell_size))
 
         return (grid_width, grid_height)
 
@@ -814,6 +824,139 @@ class BlenderWFCAdapter:
                 if algo_module is not None:
                     result.append(algo_module)
         return result
+
+    def extract_building_cells(self):
+        """Return one entry per collapsed outer-grid cell whose module is building-category.
+
+        Replaces the old vertex-group approach (``extract_plots_from_grid`` +
+        ``'building_plot'`` vertex group).  Module objects are created with
+        ``bpy.data.objects.new()`` which never carries vertex groups from the
+        source primitive, so vertex-group detection always returned empty results.
+
+        Instead we read ``blender_module.grid_category`` directly from the
+        algorithm state — data that is always present and correct.
+
+        Returns:
+            List of dicts::
+
+                {
+                    'outer_cell_coords': (int, int),   # (cell_x, cell_y)
+                    'world_pos':         Vector,        # visual centre of the outer cell
+                }
+        """
+        cells = []
+        if self.algorithm is None:
+            return cells
+
+        coord_to_idx = {}   # used by group_building_islands for O(1) neighbour lookup
+        for coords, cell_obj in self.cell_objects.items():
+            if isinstance(cell_obj, dict):
+                continue
+
+            algorithm_cell = self.algorithm.grid.cells.get(coords)
+            if not algorithm_cell or not algorithm_cell.is_collapsed:
+                continue
+
+            algorithm_module = algorithm_cell.possible_modules[0]
+            blender_module   = self.blender_module_map.get(algorithm_module.id)
+
+            if blender_module is None:
+                continue
+
+            # We're looking for outer-grid cells whose primitive type is
+            # 'BUILDING' — NOT for cells whose grid_category is 'building'.
+            # grid_category indicates the SCALE (outer_grid = 8m, building = 2m).
+            # primitive_type indicates what KIND of tile it is (road, pavement,
+            # building plot, etc.).  Outer-grid building-plot modules have
+            # grid_category='outer_grid' and primitive_type='BUILDING'.
+            obj_source = blender_module.obj_source
+            if obj_source is None:
+                continue
+            if getattr(obj_source, 'primitive_type', 'NONE') != 'BUILDING':
+                continue
+
+            physical_size = getattr(blender_module, 'physical_size', 8.0)
+            entry = {
+                'outer_cell_coords': coords,
+                # Outer modules are placed at (cell.x * size, cell.y * size, 0)
+                # with their mesh centred at the local origin, so this location
+                # IS the visual centre of the cell.
+                'world_pos': Vector((
+                    coords[0] * physical_size,
+                    coords[1] * physical_size,
+                    0.0,
+                )),
+            }
+            coord_to_idx[coords] = len(cells)
+            cells.append(entry)
+
+        # Attach the lookup table so group_building_islands can reuse it.
+        self._building_cell_coord_to_idx = coord_to_idx
+        return cells
+
+    def group_building_islands(self, building_cells):
+        """Group adjacent building cells into contiguous islands.
+
+        Adjacency is defined as sharing an edge in the outer grid (4-connected,
+        no diagonals).  Uses the ``_building_cell_coord_to_idx`` map built by
+        ``extract_building_cells()`` for O(1) neighbour lookups.
+
+        Args:
+            building_cells: List returned by :meth:`extract_building_cells`.
+
+        Returns:
+            List of island dicts matching the format expected by
+            :meth:`create_inner_grid_for_island`::
+
+                {
+                    'island_id':      int,
+                    'plot_type':      'building',
+                    'plots':          List[dict],
+                    'combined_bounds': (min_x, min_y, max_x, max_y),
+                    'grid_size':      (width_in_outer_cells, height_in_outer_cells),
+                }
+        """
+        coord_to_idx = getattr(self, '_building_cell_coord_to_idx', {})
+        # Fall back to a full rebuild if extract_building_cells wasn't called first.
+        if not coord_to_idx:
+            coord_to_idx = {c['outer_cell_coords']: i for i, c in enumerate(building_cells)}
+
+        processed = set()
+        islands   = []
+
+        for start_idx, _ in enumerate(building_cells):
+            if start_idx in processed:
+                continue
+
+            # Flood-fill from this seed cell.
+            island_cells = []
+            queue = [start_idx]
+
+            while queue:
+                idx = queue.pop(0)
+                if idx in processed:
+                    continue
+                processed.add(idx)
+                island_cells.append(building_cells[idx])
+
+                cx, cy = building_cells[idx]['outer_cell_coords']
+                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                    neighbour_idx = coord_to_idx.get((nx, ny))
+                    if neighbour_idx is not None and neighbour_idx not in processed:
+                        queue.append(neighbour_idx)
+
+            if island_cells:
+                bounds    = self._calculate_island_bounds(island_cells)
+                grid_size = self._calculate_island_grid_size(bounds)
+                islands.append({
+                    'island_id':       len(islands),
+                    'plot_type':       'building',
+                    'plots':           island_cells,
+                    'combined_bounds': bounds,
+                    'grid_size':       grid_size,
+                })
+
+        return islands
 
     def create_inner_grid_for_island(self, island, resolution_multiplier=4,
                                        inner_modules=None, category=None):
