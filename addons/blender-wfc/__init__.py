@@ -360,6 +360,14 @@ def generate_modules_for_category(category: str) -> None:
             module_obj.primitive_type = getattr(primitive, 'primitive_type', 'NONE')
             module_obj.resolution_multiplier = getattr(primitive, 'resolution_multiplier', 1)
             module_obj.grid_category = getattr(primitive, 'grid_category', 'outer_grid')
+
+            # Propagate vertex groups so _extract_plot_faces_from_module() can
+            # find e.g. 'building_plot' on the generated module objects.  The
+            # copied mesh data already contains vertex weight assignments; we
+            # just need matching vertex-group definitions on the object.
+            for vg in primitive.vertex_groups:
+                module_obj.vertex_groups.new(name=vg.name)
+
             link_object_to_single_collection(module_obj, modules_collection)
 
             mods.append(
@@ -692,17 +700,25 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
                 "Load building primitives then press 'Build Building Modules'.")
             return {'CANCELLED'}
 
-        # ── Extract & group building cell islands ──────────────────────────
-        # Uses module grid_category instead of vertex groups (which are never
-        # present on generated module objects).
-        building_cells = adapter.extract_building_cells()
-        if not building_cells:
-            self.report({'WARNING'},
-                "No building cells found in the collapsed outer grid. "
-                "Make sure the outer grid has collapsed building modules.")
-            return {'CANCELLED'}
-
-        islands = adapter.group_building_islands(building_cells)
+        # ── Extract & group building plot islands ──────────────────────────
+        # Prefer vertex-group extraction (sub-cell precision for mixed cells
+        # like Corner and Pavement).  Fall back to category-based extraction
+        # if no vertex groups are present on the modules.
+        building_plots = adapter.extract_plots_from_grid(
+            plot_type='building', vertex_group_name='building_plot'
+        )
+        if building_plots:
+            islands = adapter.group_plot_islands(building_plots, plot_type='building')
+        else:
+            # Fallback: category-based (whole-cell) extraction
+            building_cells = adapter.extract_building_cells()
+            if not building_cells:
+                self.report({'WARNING'},
+                    "No building plots found in the collapsed outer grid. "
+                    "Ensure primitives have 'building_plot' vertex groups or "
+                    "that building modules are present.")
+                return {'CANCELLED'}
+            islands = adapter.group_building_islands(building_cells)
 
         # ── Set up building algorithm modules (done once for all islands) ──
         build_adapter = BlenderWFCAdapter()
@@ -717,13 +733,15 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
                 resolution = res
 
         total_collapsed = 0
+        from .collectiontools import ensure_grid_collection
+        grid_collection = ensure_grid_collection(GridCategory.BUILDING)
+        cell_size = all_building_modules[0].physical_size if all_building_modules else 2.0
+        half = cell_size / 2
+
         for island in islands:
-            # DEBUG: trace island dimensions
-            print(f"[WFC-DEBUG] Island {island['island_id']}:")
-            print(f"  plots:          {len(island['plots'])}")
-            print(f"  combined_bounds: {island['combined_bounds']}")
-            print(f"  grid_size:       {island['grid_size']}")
-            print(f"  resolution:      {resolution}")
+            bounds = island['combined_bounds']
+            print(f"[WFC] Island {island['island_id']}: "
+                  f"plots={len(island['plots'])}, bounds={bounds}")
 
             inner_grid, _ = adapter.create_inner_grid_for_island(
                 island,
@@ -731,13 +749,6 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
                 inner_modules=algo_building_modules,
             )
             build_adapter.build_algorithm_module_pairs(algo_building_modules)
-
-            print(f"  inner_grid cells: {len(inner_grid.cells)}")
-            print(f"  inner_grid uncollapsed: {len(inner_grid.get_uncollapsed_cells())}")
-            print(f"  algo_building_modules: {len(algo_building_modules)}")
-            if algo_building_modules:
-                m = algo_building_modules[0]
-                print(f"  first module pairs: pos_x={len(m.pos_x_pairs)} neg_x={len(m.neg_x_pairs)} pos_y={len(m.pos_y_pairs)} neg_y={len(m.neg_y_pairs)}")
 
             # Collapse the inner grid fully
             inner_wfc = WFCAlgorithm(inner_grid)
@@ -750,19 +761,16 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
                 total_collapsed += 1
 
             # Visualize collapsed inner grid cells.
-            # bounds[0/1] are the outer *edges* of the island (corner, not cell centre).
-            # Building module objects are centred at their origin, so each must be
-            # placed at the centre of its inner cell = edge + cell_size / 2.
-            bounds = island['combined_bounds']
-            cell_size = all_building_modules[0].physical_size if all_building_modules else 2.0
-            half = cell_size / 2
+            # bounds[0/1] are the outer edges of the island.
+            # Each inner cell is placed at edge + half + cell_index * cell_size.
             origin_x = bounds[0] + half
             origin_y = bounds[1] + half
-            from .collectiontools import ensure_grid_collection
-            grid_collection = ensure_grid_collection(GridCategory.BUILDING)
+
             for cell in inner_grid.cells.values():
                 if cell.is_collapsed and cell.possible_modules:
                     algo_mod = cell.possible_modules[0]
+                    if algo_mod is None:
+                        continue
                     wfc_mod = build_adapter.blender_module_map.get(algo_mod.id)
                     if wfc_mod and wfc_mod.obj_source:
                         loc = (

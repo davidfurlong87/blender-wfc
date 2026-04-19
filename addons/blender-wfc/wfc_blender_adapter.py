@@ -762,23 +762,38 @@ class BlenderWFCAdapter:
     def _calculate_island_bounds(self, island_plots):
         """Calculate combined bounding box for an island.
 
-        Each ``world_pos`` in *island_plots* is the anchor origin of an outer
-        grid cell (= its visual centre, since modules are meshed centred on
-        their local origin).  We therefore expand outward by half the outer
-        cell size to reach the true outer edge of the island, giving a bounds
-        rectangle that exactly covers the island footprint.
+        Handles two formats of plot data:
+
+        * **Face-level plots** (from ``extract_plots_from_grid``):
+          Each plot has ``vertices_relative`` — actual face vertex positions
+          relative to the module origin.  Bounds are computed from exact vertex
+          world positions, giving sub-cell precision.
+
+        * **Cell-level plots** (from ``extract_building_cells``):
+          Each plot represents an entire outer cell with only ``world_pos``.
+          Bounds are expanded by half the outer cell size from the centres.
         """
         if not island_plots:
             return (0, 0, 0, 0)
 
+        # Face-level: compute bounds from actual vertex world positions.
+        if 'vertices_relative' in island_plots[0]:
+            cell_size = self._get_cell_size()
+            all_x = []
+            all_y = []
+            for plot in island_plots:
+                cx, cy = plot['outer_cell_coords']
+                for vert in plot['vertices_relative']:
+                    all_x.append(cx * cell_size + vert.x)
+                    all_y.append(cy * cell_size + vert.y)
+            return (min(all_x), min(all_y), max(all_x), max(all_y))
+
+        # Cell-level: expand from centres by half the outer cell size.
         min_x = min(plot['world_pos'].x for plot in island_plots)
         min_y = min(plot['world_pos'].y for plot in island_plots)
         max_x = max(plot['world_pos'].x for plot in island_plots)
         max_y = max(plot['world_pos'].y for plot in island_plots)
 
-        # Expand by half the outer cell size so the bounds reach the true outer
-        # edges of the island.  (Previously this used 1.0 = half of a 2×2 face,
-        # which was far too small and produced a mis-aligned, under-sized inner grid.)
         half_outer = self._get_cell_size() / 2
         return (min_x - half_outer, min_y - half_outer,
                 max_x + half_outer, max_y + half_outer)
@@ -997,9 +1012,15 @@ class BlenderWFCAdapter:
                 inner_modules = []
 
         # ── Calculate inner grid dimensions ───────────────────────────────
-        grid_size = island['grid_size']   # (width, height) in outer cells
-        inner_width  = max(1, grid_size[0] * resolution_multiplier)
-        inner_height = max(1, grid_size[1] * resolution_multiplier)
+        # Compute directly from bounds so both cell-level and face-level
+        # islands produce the correct number of inner cells.
+        bounds = island['combined_bounds']
+        outer_cell_size = self._get_cell_size()
+        inner_cell_size = outer_cell_size / resolution_multiplier
+        width_m  = bounds[2] - bounds[0]
+        height_m = bounds[3] - bounds[1]
+        inner_width  = max(1, round(width_m  / inner_cell_size))
+        inner_height = max(1, round(height_m / inner_cell_size))
 
         # ── Populate grid ─────────────────────────────────────────────────
         inner_grid = Grid(width=inner_width, height=inner_height)
