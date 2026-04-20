@@ -2,6 +2,11 @@
 
 **For developers who want to get started quickly**
 
+> Before extending the inner-grid workflow, read
+> `docs/features/INNER_GRID_DESIGN_PHILOSOPHY.md`.
+> In particular: use semantic vertex groups like `building_plot`, and avoid
+> giving primitives and vertex groups the same name.
+
 ---
 
 ## 🎯 What You're Building
@@ -9,6 +14,29 @@
 A **two-level WFC system** where:
 1. **Level 1:** Generate city layout (roads, pavements, building plots) ✅ **DONE**
 2. **Level 2:** Generate buildings on each plot island using WFC again 🚧 **TODO**
+
+---
+
+## ✅ Authoring Checklist
+
+Before creating or editing primitives for the inner-grid workflow:
+
+- Use **semantic vertex groups** for plot masks, e.g. `building_plot`
+- Keep **primitive names** and **vertex group names** distinct
+- Treat vertex groups as **generation data**, not just modeling helpers
+- For mixed 8x8m outer cells, mark only the buildable 2x2m faces
+- Do not assume a primitive's `primitive_type` fully describes its inner-grid footprint
+- If you change placement logic, verify it still uses **plot-marked faces** rather than whole-cell assumptions
+
+### Good naming pattern
+- Primitive: `Corner_Primitive`
+- Vertex group: `building_plot`
+
+### Avoid
+- Primitive: `building_plot`
+- Vertex group: `building_plot`
+
+This naming separation makes debugging and inspection much clearer.
 
 ---
 

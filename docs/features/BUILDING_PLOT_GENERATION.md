@@ -1,13 +1,13 @@
 # Building Plot Generation Feature
 
-**Status:** ✅ Phase 1 Complete - Ready for Phase 3
+**Status:** ✅ Core extraction and inner-grid placement working
 **Priority:** High
 **Complexity:** High
-**Last Updated:** 2026-03-12
+**Last Updated:** 2026-04-20
 
 ---
 
-## **� Quick Status Summary**
+## **Quick Status Summary**
 
 ### **✅ Completed (Phase 1):**
 - Generic plot extraction from collapsed outer grid
@@ -21,11 +21,12 @@
 - Implement inner grid WFC collapse
 - Visualize collapsed inner grid results
 
-### **⚠️ Known Issues (Non-blocking):**
-- Debug visualization has padding/gaps around plots (visualization-only issue)
-  - **Fix location:** `wfc_blender_adapter.py`, `_calculate_island_bounds()`, lines 756-769
-  - **Solution:** Use actual face vertices instead of centers + fixed padding
-  - **Priority:** Low - doesn't affect functionality
+### **📘 Important Design Note:**
+- See `docs/features/INNER_GRID_DESIGN_PHILOSOPHY.md`
+- Inner-grid placement must be derived from **vertex-group-marked faces**, not
+  from outer-cell type alone
+- Mixed cells (e.g. corner or pavement cells with building-marked faces) are
+  expected to contribute to the building footprint
 
 ---
 
@@ -66,7 +67,7 @@ After the outer grid collapses, we have a city layout with "islands" where build
                           ↓
         ┌─────────────────────────────────────┐
         │  Identify Building Plot Islands     │
-        │  (Contiguous BUILDING modules)      │
+        │  (Contiguous building-marked faces) │
         └─────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -190,11 +191,13 @@ See the **Phase 1** section below for complete implementation details.
 - **Adapter pattern** maintained - no direct Blender dependencies in algorithm
 - Inner grid coordinates correctly calculated: `(outer_x * resolution + grid_x, outer_y * resolution + grid_y)`
 
-**Known Issues (Non-blocking):**
-- ⚠️ **Debug visualization padding:** The debug planes have gaps/padding around building plots. This is because `_calculate_island_bounds()` uses face centers + fixed padding (1.0) instead of actual face vertices. This is a **visualization-only issue** and doesn't affect the actual algorithm.
-  - **Fix (when needed):** Update `_calculate_island_bounds()` to use `plot['vertices_relative']` to calculate exact bounds from actual geometry instead of centers + padding.
-  - **Location:** `addons/blender-wfc/wfc_blender_adapter.py`, lines 756-769
-  - **Priority:** Low - doesn't affect functionality, only debug visualization
+**Current Design Notes:**
+- ✅ Plot extraction uses **vertex groups** such as `building_plot`
+- ✅ Mixed outer cells can contribute only their marked 2x2m sub-faces
+- ✅ Island bounds are derived from actual face vertices when available
+- ✅ Inner-grid dimensions are computed from world-space bounds, not from whole-cell counts
+- 📘 Authoring guidance and naming conventions are documented in
+  `docs/features/INNER_GRID_DESIGN_PHILOSOPHY.md`
 
 **Actual Time:** ~4 hours
 

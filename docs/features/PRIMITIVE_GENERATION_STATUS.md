@@ -7,6 +7,19 @@
 
 ## ✅ Implementation Status
 
+### Primitive Authoring Checklist
+
+Use this checklist when creating primitives that may participate in outer-grid
+to inner-grid workflows:
+
+- Give each primitive a clear **object/module identity name**
+- Give each vertex group a clear **semantic mask name** such as `building_plot`
+- **Do not** use the same name for the primitive and the vertex group
+- In mixed cells, mark only the faces that truly belong to the semantic region
+- Remember that future inner-grid extraction may use vertex-group-marked faces,
+  not just primitive category
+- For inner-grid-related work, see `docs/features/INNER_GRID_DESIGN_PHILOSOPHY.md`
+
 ### **What Was Planned (MVP)**
 
 | Phase | Planned | Status | Notes |
