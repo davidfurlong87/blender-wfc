@@ -207,8 +207,31 @@ class PrimitiveAdapter:
                     mesh_obj.data.materials.append(material)
                 else:
                     errors.append(f"Material '{material_name}' not found in blend file")
-                    # Create placeholder material
+                    # Create placeholder material with a distinct colour derived
+                    # from the material name so different materials are visually
+                    # distinguishable during debugging. Uses a simple hash so
+                    # the same name always produces the same colour.
                     placeholder = bpy.data.materials.new(name=material_name)
+                    placeholder.use_nodes = True
+                    nodes = placeholder.node_tree.nodes
+                    nodes.clear()
+                    diffuse = nodes.new(type="ShaderNodeBsdfDiffuse")
+                    output = nodes.new(type="ShaderNodeOutputMaterial")
+                    placeholder.node_tree.links.new(
+                        diffuse.outputs['BSDF'], output.inputs['Surface']
+                    )
+                    # Derive hue from hash of name; convert HSV → RGB manually
+                    # so we don't need to import colorsys (unavailable in some envs)
+                    h = (hash(material_name) & 0xFFFF) / 0xFFFF  # 0.0–1.0
+                    s, v = 0.7, 0.9
+                    i = int(h * 6)
+                    f = h * 6 - i
+                    p, q, t = v * (1 - s), v * (1 - s * f), v * (1 - s * (1 - f))
+                    r, g, b = [
+                        (v, t, p), (q, v, p), (p, v, t),
+                        (p, q, v), (t, p, v), (v, p, q)
+                    ][i % 6]
+                    diffuse.inputs['Color'].default_value = (r, g, b, 1.0)
                     mesh_obj.data.materials.append(placeholder)
 
             # Apply material indices to faces

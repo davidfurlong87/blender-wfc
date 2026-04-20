@@ -48,7 +48,7 @@
         0
       ],
       "material_names": [
-        "Building_Room"
+        "Building_Interior"
       ],
       "connectors": {
         "pos_x": "WALL",
@@ -102,7 +102,7 @@
         0
       ],
       "material_names": [
-        "Building_Corridor_H"
+        "Building_Interior"
       ],
       "connectors": {
         "pos_x": "HALLWAY",
@@ -156,7 +156,7 @@
         0
       ],
       "material_names": [
-        "Building_Corner_Room"
+        "Building_Interior"
       ],
       "connectors": {
         "pos_x": "DOOR",
@@ -210,7 +210,7 @@
         0
       ],
       "material_names": [
-        "Building_Open_Space"
+        "Building_Interior"
       ],
       "connectors": {
         "pos_x": "EMPTY",
