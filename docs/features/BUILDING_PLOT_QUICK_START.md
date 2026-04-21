@@ -7,6 +7,9 @@
 > In particular: use semantic vertex groups like `building_plot`, and avoid
 > giving primitives and vertex groups the same name.
 
+> Absolute beginner creating new inner-building primitives from scratch?
+> Start with `docs/features/BEGINNER_INNER_BUILDING_PRIMITIVE_AUTHORING_GUIDE.md`.
+
 ---
 
 ## 🎯 What You're Building
