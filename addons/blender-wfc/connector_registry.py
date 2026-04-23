@@ -273,6 +273,45 @@ class ConnectorRegistry:
         return f"ConnectorRegistry({len(self.connectors)} connectors: {', '.join(self.get_all_names())})"
 
 
-# Global singleton instance
-# This is the main instance used throughout the codebase
+# ── Global registry ───────────────────────────────────────────────────────────
+# Loaded once at import time from hardcoded defaults.  Always present; never
+# mutated after startup.  This is the fallback when no pack has been loaded.
 connector_registry = ConnectorRegistry()
+
+# ── Session registry ──────────────────────────────────────────────────────────
+# Replaced when the user loads a pack that embeds its own connector definitions.
+# While set, this registry is the one shown in the connector dropdown and used
+# for validation.  Cleared when loading a different pack or resetting the session.
+_session_registry: 'ConnectorRegistry | None' = None
+
+
+def get_active_registry() -> 'ConnectorRegistry':
+    """Return the currently active connector registry.
+
+    Returns the session registry if a pack has been loaded (see
+    ``set_session_registry``), otherwise returns the global default registry.
+    """
+    return _session_registry if _session_registry is not None else connector_registry
+
+
+def set_session_registry(registry: 'ConnectorRegistry | None') -> None:
+    """Override the active registry with a pack-specific one.
+
+    Pass ``None`` to revert to the global defaults (equivalent to calling
+    ``clear_session_registry``).
+
+    Args:
+        registry: A ``ConnectorRegistry`` loaded from a pack's connector
+                  definitions, or ``None`` to clear the session override.
+    """
+    global _session_registry
+    _session_registry = registry
+
+
+def clear_session_registry() -> None:
+    """Revert the connector dropdown to the global defaults.
+
+    Call this when a pack is unloaded or when starting a fresh session.
+    """
+    global _session_registry
+    _session_registry = None

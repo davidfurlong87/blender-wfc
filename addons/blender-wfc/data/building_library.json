@@ -10,6 +10,43 @@
     "description": "Interior building primitives for WFC sub-grid generation. Physical size: 2 m. Grid category: building. Resolution multiplier: 4.",
     "primitive_count": 4
   },
+  "connectors": [
+    {
+      "name": "WALL",
+      "description": "Solid wall — matches walls, doors, and windows",
+      "compatible_with": ["WALL", "DOOR", "WINDOW"],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "DOOR",
+      "description": "Door opening — matches walls, doors, and hallways",
+      "compatible_with": ["WALL", "DOOR", "HALLWAY"],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "WINDOW",
+      "description": "Window opening — matches walls and windows",
+      "compatible_with": ["WALL", "WINDOW"],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "HALLWAY",
+      "description": "Hallway opening — matches hallways and doors",
+      "compatible_with": ["HALLWAY", "DOOR"],
+      "grid_category": "building",
+      "is_symmetric": true
+    },
+    {
+      "name": "EMPTY",
+      "description": "Empty space — matches empty",
+      "compatible_with": ["EMPTY"],
+      "grid_category": "building",
+      "is_symmetric": true
+    }
+  ],
   "primitives": [
     {
       "name": "Room",

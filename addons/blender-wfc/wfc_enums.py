@@ -51,13 +51,14 @@ def get_connector_enum_items(self=None, context=None):
         List of (identifier, name, description) tuples for Blender EnumProperty
     """
     try:
-        from .connector_registry import connector_registry
+        from .connector_registry import get_active_registry
+        active = get_active_registry()
         items = sorted(
             [
                 (c.name, c.name.replace('_', ' ').title(), c.description)
-                for c in connector_registry.connectors.values()
+                for c in active.connectors.values()
             ],
-            key=lambda item: item[1]  # sort by display name, case-insensitive order
+            key=lambda item: item[1]  # sort by display name
         )
         if items:
             return items

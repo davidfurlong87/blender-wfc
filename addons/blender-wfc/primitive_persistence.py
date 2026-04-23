@@ -175,8 +175,13 @@ class PrimitivePersistence:
         library_name: str = "Primitive Library",
         description: str = "",
         metadata: Optional[Dict[str, str]] = None,
+        connectors: Optional[List[dict]] = None,
         pretty: bool = True
     ) -> Tuple[bool, List[str]]:
+        """connectors: optional list of connector definition dicts as produced
+        by ``ConnectorDefinition.to_dict()``.  When provided they are embedded
+        in the pack JSON under the ``"connectors"`` key so the file is fully
+        self-contained and can re-activate its own registry on load."""
         """
         Save multiple primitives to a single library file
 
@@ -218,8 +223,12 @@ class PrimitivePersistence:
             output = {
                 'format_version': self.format_version,
                 'library_metadata': library_metadata,
-                'primitives': primitive_dicts
+                'primitives': primitive_dicts,
             }
+            # Embed connector definitions when provided so the pack is
+            # self-contained and can restore its own session registry on load.
+            if connectors:
+                output['connectors'] = connectors
 
             # Ensure directory exists
             os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
@@ -272,6 +281,13 @@ class PrimitivePersistence:
 
             # Extract metadata
             metadata = data.get('library_metadata', {})
+
+            # Surface the pack-embedded connector definitions (if any) through
+            # the metadata dict so callers can activate a session registry
+            # without needing to re-read the file.  The key is 'connectors'
+            # to match the JSON structure directly.
+            if 'connectors' in data:
+                metadata['connectors'] = data['connectors']
 
             # Extract primitives
             primitive_dicts = data.get('primitives', [])

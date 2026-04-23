@@ -587,7 +587,36 @@ class OBJECT_OT_WFCLoadPrimitive(bpy.types.Operator):
                     obj.select_set(True)
                 context.view_layer.objects.active = created[-1]
                 lib_name = lib_meta.get('library_name', 'library')
-                self.report({'INFO'}, f"Loaded {len(created)} primitives from '{lib_name}'")
+
+                # If the pack embeds its own connector definitions, activate
+                # a session registry from them so the dropdown only shows
+                # connectors that are valid for this pack.
+                connector_dicts = lib_meta.get('connectors')
+                if connector_dicts:
+                    from .connector_registry import (
+                        ConnectorRegistry, ConnectorDefinition,
+                        set_session_registry,
+                    )
+                    session_reg = ConnectorRegistry.__new__(ConnectorRegistry)
+                    session_reg.connectors = {}
+                    for c_dict in connector_dicts:
+                        try:
+                            cd = ConnectorDefinition.from_dict(c_dict)
+                            session_reg.register(cd)
+                        except Exception:
+                            pass
+                    if session_reg.connectors:
+                        set_session_registry(session_reg)
+                        self.report(
+                            {'INFO'},
+                            f"Loaded {len(created)} primitives from '{lib_name}' "
+                            f"({len(session_reg.connectors)} pack connectors activated)",
+                        )
+                    else:
+                        self.report({'INFO'}, f"Loaded {len(created)} primitives from '{lib_name}'")
+                else:
+                    self.report({'INFO'}, f"Loaded {len(created)} primitives from '{lib_name}'")
+
                 return {'FINISHED'}
             else:
                 self.report({'ERROR'}, "Failed to create any objects from library")
