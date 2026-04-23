@@ -110,9 +110,10 @@ class OBJECT_PT_WFCPackPanel(bpy.types.Panel):
             )
 
             row = header.row(align=True)
-            row.operator("object.wfc_load_pack",  text="Load",  icon='FILEBROWSER')
-            row.operator("object.wfc_save_pack",  text="Save",  icon='FILE_TICK')
-            row.operator("object.wfc_new_pack",   text="New",   icon='ADD')
+            row.operator("object.wfc_load_pack",  text="Load",   icon='FILEBROWSER')
+            row.operator("object.wfc_save_pack",  text="Save",   icon='FILE_TICK')
+            row.operator("object.wfc_merge_pack", text="Merge…", icon='COLLECTION_NEW')
+            row.operator("object.wfc_new_pack",   text="New",    icon='ADD')
 
             # Migration helper: offer "Export as Blend" for JSON-only packs
             if mode == 'json_only':
@@ -1625,6 +1626,165 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             bpy.data.texts.remove(text_block)
 
 
+class OBJECT_OT_WFCMergePack(bpy.types.Operator):
+    """Merge another JSON pack into the active pack.
+
+    Loads the incoming pack's primitives and connectors and merges them with
+    the active pack according to the selected conflict policy:
+
+    Keep Active   — on any name collision, keep the active pack's version.
+    Keep Incoming — on any name collision, replace with the incoming version.
+    Keep Both     — rename the incoming primitive to avoid the collision
+                    (connectors fall back to Keep Active when names conflict).
+
+    Identical primitives / connectors are silently de-duplicated.
+    Connectors whose only difference is ``compatible_with`` are auto-merged
+    (union of both lists) regardless of the conflict policy.
+
+    Note: only JSON packs are supported as the incoming source.  To merge a
+    hybrid pack, load it into the scene first, save it as JSON, then merge.
+    """
+    bl_idname  = "object.wfc_merge_pack"
+    bl_label   = "Merge Pack"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath:        StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob:     StringProperty(default="*.json", options={'HIDDEN'})  # type: ignore
+    conflict_policy: bpy.props.EnumProperty(  # type: ignore
+        name="On Conflict",
+        description="How to resolve name collisions between the two packs",
+        items=[
+            ('KEEP_ACTIVE',   "Keep Active",
+             "Keep the active pack's version; discard the incoming one"),
+            ('KEEP_INCOMING', "Keep Incoming",
+             "Replace the active pack's version with the incoming one"),
+            ('KEEP_BOTH',     "Keep Both",
+             "Rename the incoming primitive (_2, _3, …) and include both"),
+        ],
+        default='KEEP_ACTIVE',
+    )
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def draw(self, context):
+        self.layout.prop(self, "conflict_policy")
+
+    def execute(self, context):
+        if not PERSISTENCE_AVAILABLE:
+            self.report({'ERROR'}, "Persistence system unavailable")
+            return {'CANCELLED'}
+
+        from .pack_state import get_active_pack
+        from .pack_merge import merge_packs
+        from .connector_registry import (
+            ConnectorRegistry, ConnectorDefinition, set_session_registry,
+            get_active_registry,
+        )
+        from .collectiontools import ensure_primitives_collection
+        from .collectiontools.collection_creation import link_object_to_single_collection
+
+        pack = get_active_pack()
+        if not pack:
+            self.report({'ERROR'}, "No active pack — load or create a pack first")
+            return {'CANCELLED'}
+
+        # -- Load incoming pack --------------------------------------------------
+        persistence = PrimitivePersistence()
+        incoming_prims, incoming_meta, load_errors = persistence.load_primitive_library(
+            self.filepath
+        )
+        for err in load_errors:
+            self.report({'WARNING'}, err)
+
+        incoming_category = incoming_meta.get('grid_category', '')
+        if incoming_category and incoming_category != pack['category']:
+            self.report(
+                {'ERROR'},
+                f"Category mismatch: active pack is '{pack['category']}' "
+                f"but incoming pack is '{incoming_category}'. "
+                "Only packs with the same grid category can be merged.",
+            )
+            return {'CANCELLED'}
+
+        if not incoming_prims:
+            self.report({'ERROR'}, "Incoming pack contains no primitives to merge")
+            return {'CANCELLED'}
+
+        # -- Build dicts for merge engine ----------------------------------------
+        adapter = PrimitiveAdapter()
+        col = ensure_primitives_collection(pack['category'])
+
+        # Active primitives: extract PrimitiveData from the scene, convert to dict
+        active_prim_dicts = []
+        for obj in col.objects:
+            if obj.type != 'MESH':
+                continue
+            pd, _ = adapter.extract_primitive_from_blender(obj)
+            if pd:
+                active_prim_dicts.append(pd.to_dict())
+
+        incoming_prim_dicts = [p.to_dict() for p in incoming_prims]
+
+        active_conn_dicts   = [
+            c.to_dict() for c in get_active_registry().connectors.values()
+        ]
+        incoming_conn_dicts = incoming_meta.get('connectors', [])
+
+        # -- Merge ---------------------------------------------------------------
+        merged_prim_dicts, merged_conn_dicts, conflicts = merge_packs(
+            active_prim_dicts,
+            active_conn_dicts,
+            incoming_prim_dicts,
+            incoming_conn_dicts,
+            self.conflict_policy,
+        )
+
+        # -- Apply: load only the NEW primitives into the scene ------------------
+        active_names = {p['name'] for p in active_prim_dicts}
+        added = 0
+        for pd_dict in merged_prim_dicts:
+            if pd_dict['name'] in active_names:
+                continue  # already in the scene
+            from .primitive_data_core import PrimitiveData
+            pd = PrimitiveData.from_dict(pd_dict)
+            obj, errors = adapter.create_blender_object_from_primitive(pd)
+            if obj:
+                link_object_to_single_collection(obj, col)
+                added += 1
+
+        # -- Apply: update session connector registry ----------------------------
+        reg = ConnectorRegistry.__new__(ConnectorRegistry)
+        reg.connectors = {}
+        for cd in merged_conn_dicts:
+            try:
+                reg.register(ConnectorDefinition.from_dict(cd))
+            except Exception:
+                pass
+        if reg.connectors:
+            set_session_registry(reg)
+
+        # -- Report --------------------------------------------------------------
+        n_conflicts = len(conflicts)
+        conflict_summary = ""
+        if n_conflicts:
+            resolutions = {}
+            for c in conflicts:
+                resolutions.setdefault(c.resolution, 0)
+                resolutions[c.resolution] += 1
+            parts = [f"{v} {k.replace('_', ' ')}" for k, v in resolutions.items()]
+            conflict_summary = f" ({', '.join(parts)})"
+
+        self.report(
+            {'INFO'},
+            f"Merged: +{added} primitive(s) from "
+            f"'{incoming_meta.get('library_name', 'incoming pack')}'. "
+            f"{n_conflicts} conflict(s){conflict_summary}.",
+        )
+        return {'FINISHED'}
+
+
 class OBJECT_OT_WFCRenamePack(bpy.types.Operator):
     """Rename the active pack"""
     bl_idname = "object.wfc_rename_pack"
@@ -1778,6 +1938,7 @@ PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCLoadPack,
     OBJECT_OT_WFCSavePack,
     OBJECT_OT_WFCRenamePack,
+    OBJECT_OT_WFCMergePack,
     # Blend export / migration (Stage 7 — UX polish)
     OBJECT_OT_WFCExportToBlend,
     # Primitive list actions (Stage 4 — P2-C)

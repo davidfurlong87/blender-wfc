@@ -1,7 +1,7 @@
 # Primitive Pack & Connector System — Roadmap
 
 **Source:** User feedback gathered after first external handover (2026-04-23)
-**Status:** 📋 Prioritised, not yet started
+**Status:** ✅ All planned stages complete — only stretch goals remain
 
 Cross-references:
 - `COLLECTION_SYSTEM_AND_GENERICS_ROADMAP.md` — Phase B3 (connector UI), B4 (physical sizes)
@@ -187,109 +187,93 @@ features that depend on them.**
 
 ---
 
-### Stage 1 — Immediate fixes (no dependencies, high visible impact)
+### Stage 1 — Immediate fixes ✅ DONE
 
-These can be done in any order, independently of everything else.
-
-1. **P1-A** — Fix auto-capitalisation of custom type names
-2. **P1-B** — Keep physical size consistent with resolution multiplier
-3. **P3-D** — Quick-copy type and connectors from active object
-4. **P3-E** — Alphabetise the connector dropdown
-
-All four are small, self-contained, and directly address the feedback from the
-first external user. Delivering these first demonstrates responsiveness and clears
-friction from the existing workflow before the larger pack system lands.
+1. - [x] **P1-A** — Fix auto-capitalisation of custom type names
+2. - [x] **P1-B** — Keep physical size consistent with resolution multiplier
+3. - [x] **P3-D** — Quick-copy type and connectors from active object
+4. - [x] **P3-E** — Alphabetise the connector dropdown
 
 ---
 
-### Stage 2 — Complete the collection system (existing roadmap, nearly done)
+### Stage 2 — Complete the collection system ✅ DONE
 
-The generics roadmap Phase A is mostly complete (A1–A8 done). Finishing it now
-avoids carrying half-done infrastructure into the pack work.
-
-5. **A9** — Crash-safe clear functions
-6. **A10** — Route operator callers to generic generation function
-7. **A11** — Route all grid output to `WFC_Grid_{category}`
-8. **A12** — Retire "Build Collections" as a required workflow step
-
-These are prerequisite hygiene for the pack system: the pack UI needs stable,
-crash-safe collection management underneath it.
+5. - [x] **A9** — Crash-safe clear functions
+6. - [x] **A10** — Route operator callers to generic generation function
+7. - [x] **A11** — Route all grid output to `WFC_Grid_{category}`
+8. - [x] **A12** — Retire "Build Collections" as a required workflow step
 
 ---
 
-### Stage 3 — Pack data model and connector foundation
+### Stage 3 — Pack data model and connector foundation ✅ DONE
 
-These are design tasks that everything else depends on. Doing them before writing
-any UI avoids having to redesign while building.
-
-9.  **P2-A** — Define the pack data model (JSON schema, in-memory representation)
-10. **B3** (partial) — Load the connector dropdown from the active pack's registry
+9.  - [x] **P2-A** — Define the pack data model (JSON schema, in-memory representation)
+10. - [x] **B3** (partial) — Load the connector dropdown from the active pack's registry
     instead of the global `connectors.json`
-11. **P3-B** — Implement pack-scoped connector registry (load/save with pack)
-
-At the end of Stage 3, the system knows what a pack is and connectors are
-pack-local. Nothing in the UI changes yet, but the data layer is solid.
+11. - [x] **P3-B** — Implement pack-scoped connector registry (load/save with pack)
 
 ---
 
-### Stage 4 — Pack management UI
+### Stage 4 — Pack management UI ✅ DONE
 
-Build the UI on top of the stable data layer from Stage 3.
-
-12. **P2-B** — Pack management panel: New / Load / Save / Rename
-13. **P2-C** — Primitive list inside the pack with Rename / Delete / Select
-14. **P2-D** — Pack-wide physical size and resolution pre-populate the metadata dialog
-
-At the end of Stage 4, the pack is the primary working unit visible to the user.
-The old "Load from JSON" path stays as a legacy entry point.
+12. - [x] **P2-B** — Pack management panel: New / Load / Save / Rename
+13. - [x] **P2-C** — Primitive list inside the pack with Rename / Delete / Select
+14. - [x] **P2-D** — Pack-wide physical size and resolution pre-populate the metadata dialog
 
 ---
 
-### Stage 5 — Full connector management UI
+### Stage 5 — Full connector management UI ✅ DONE
 
-With packs working, connectors can be exposed fully.
-
-15. **P3-A** — Add / delete connectors from the Connector Registry panel
-16. **P3-C** — Rename connector (with automatic update of affected primitives)
+15. - [x] **P3-A** — Add / delete connectors from the Connector Registry panel
+16. - [x] **P3-C** — Rename connector (with automatic update of affected primitives)
 
 ---
 
-### Stage 6 — Remaining generics (Phase B audit)
+### Stage 6 — Remaining generics (Phase B audit) ✅ DONE
 
-17. **B1** — Audit hardcoded literals across the codebase
-18. **B2** — Category-driven panel buttons (outcome depends on B1)
-19. **B4** — Physical sizes and resolutions driven from a `categories.json` config
-
-These are valuable but can wait until the pack and connector systems are stable,
-because B4 in particular overlaps with the pack-level defaults added in Stage 4.
+17. - [x] **B1** — Audit hardcoded literals across the codebase
+18. - [x] **B2** — Category-driven panel buttons (confirmed already generic)
+19. - [x] **B4** — Physical sizes and resolutions driven from `data/categories.json`
 
 ---
 
-### Stage 7 — Deferred / stretch goals
+### Stage 7 — Blend pack support ✅ DONE
+
+20. - [x] **Load/save pack from .blend file** — hybrid model: `pack.json` (manifest) + `pack.blend` (geometry)
+         - PoC verified round-trip fidelity of meshes, materials, vertex groups, WFC custom properties
+         - Loader handles JSON-only, hybrid (JSON + blend), and blend-only (companion auto-discovered) paths
+         - Saver exports geometry to `.blend`, embeds connector registry as Text data-block, writes companion JSON
+         - Source-mode badge in Pack panel; "Export as Blend…" migration button for JSON-only packs
+         - 52/52 automated tests passing
+
+---
+
+### Remaining stretch goals
 
 In rough order of value:
 
-20. **Load pack from .blend file** — depends on P2-A/B being stable
-21. **Merge two packs** — depends on pack-scoped connector registry (Stage 3)
-22. **Connector-aware context filtering** — depends on the outer grid collapse system
-23. **Material pack** — depends on the pack format being finalised
+21. - [x] **Merge two packs** — combine primitives and connectors from two JSON files, detecting and resolving connector name conflicts; depends on pack-scoped connector registry (Stage 3 ✅)
+22. - [ ] **Connector-aware context filtering** — restrict the connector dropdown based on what the outer grid has placed adjacent to the current cell; depends on the outer grid collapse system
+23. - [ ] **Material pack** — export materials alongside primitives for a fully portable pack; depends on the pack format being finalised (Stage 7 ✅)
 
 ---
 
 ### Dependency diagram (simplified)
 
 ```
-Stage 1 (P1-A, P1-B, P3-D, P3-E)   ← no dependencies, start immediately
+Stage 1 (P1-A, P1-B, P3-D, P3-E)   ✅ done
      |
-Stage 2 (A9–A12)                    ← finish existing collection roadmap
+Stage 2 (A9–A12)                    ✅ done
      |
-Stage 3 (P2-A, B3-partial, P3-B)   ← data model and connector foundation
+Stage 3 (P2-A, B3-partial, P3-B)   ✅ done
      |
-Stage 4 (P2-B, P2-C, P2-D)         ← pack UI
+Stage 4 (P2-B, P2-C, P2-D)         ✅ done
      |
-Stage 5 (P3-A, P3-C)               ← connector management UI
+Stage 5 (P3-A, P3-C)               ✅ done
      |
-Stage 6 (B1, B2, B4)               ← generics audit and cleanup
+Stage 6 (B1, B2, B4)               ✅ done
      |
-Stage 7 (stretch goals)
+Stage 7 (blend pack support)        ✅ done
+     |
+Stretch goals (merge, filtering, material pack)   ← next
 ```
