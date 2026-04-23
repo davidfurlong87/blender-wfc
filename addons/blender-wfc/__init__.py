@@ -154,14 +154,25 @@ class OBJECT_OT_WFCClearAll(bpy.types.Operator):
         return {'FINISHED'}
 
 def clear_all_primitives():
-        all_primitives.clear()
-        delete_objects_and_meshes(
-            get_all_objects_from_collection(CollectionNames.Primitives.value)
-        )
+    """Remove all primitive objects from the scene and reset the primitives dict.
+
+    Crash-safe: does nothing when WFC_Primitives (or any subcollection) does
+    not yet exist — missing collection = nothing to clear = not an error.
+    """
+    all_primitives.clear()
+    col = bpy.data.collections.get(CollectionNames.Primitives.value)
+    if col is not None:
+        delete_objects_and_meshes(list(col.all_objects))
 
 def clear_all_modules():
-    """Backward-compat shim. Prefer clear_modules_for_category(GridCategory.OUTER_GRID)."""
-    clear_modules_for_category(GridCategory.OUTER_GRID)
+    """Clear modules for every loaded category.
+
+    Iterates over all keys currently present in ``_modules_by_category`` so
+    that building, outer_grid, and any future category are all covered.
+    Crash-safe: an empty dict or a missing collection is not an error.
+    """
+    for category in list(_modules_by_category.keys()):
+        clear_modules_for_category(category)
 
 def clear_all_cells():
     # Use .get() + .all_objects so this is safe even before WFC_Grid exists,

@@ -68,8 +68,11 @@ check("uses modules_collection_for(category) for col name",
 # ── Source: clear_all_modules shim ──────────────────────────────────────────
 print()
 print("Source: clear_all_modules shim:")
+# A9 upgrade: clear_all_modules now iterates over all keys in
+# _modules_by_category rather than hardcoding OUTER_GRID.
 check("clear_all_modules calls clear_modules_for_category",
-      "clear_modules_for_category(GridCategory.OUTER_GRID)" in src)
+      "clear_modules_for_category(category)" in src and
+      "_modules_by_category.keys()" in src)
 check("clear_all_modules no longer references all_modules.clear()",
       "def clear_all_modules" in src and
       "all_modules.clear()" not in src)
