@@ -1,13 +1,15 @@
 import bpy
 from mathutils import Vector
 from .wfc_classes import WFCCell, WFCPlot, BuildingPlot, WFCPlotGroup, BuildingPlotGroup
+from .wfc_values import GridCategory, DEFAULT_GRID_SIZES
+
 def extract_building_plots_from_cell(cell):
     """Extract building plot data from a collapsed WFC cell"""
     module = cell.return_collapsed_module()
     plots = []
 
     # Read physical cell size from the module (Task 2B.2)
-    cell_size = module.physical_size if module else 8.0
+    cell_size = module.physical_size if module else DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
 
     # Define building plot areas for each primitive type
     # These would be based on your primitive designs

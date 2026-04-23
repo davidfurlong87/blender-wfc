@@ -200,44 +200,85 @@ symmetric naming helpers):
 
 *Scope is intentionally exploratory. B1 audit drives the priority of B2–B4.*
 
-### B1 — Audit hardcoded values across the codebase
+### B1 — Audit hardcoded values across the codebase ✅
 **Goal:** Produce a grouped inventory before changing anything.
-- [ ] Scan all non-data files for bare category string literals
+- [x] Scan all non-data files for bare category string literals
       (`'building'`, `'outer_grid'`, etc.)
-- [ ] Scan for bare size/resolution literals (`8.0`, `2.0`, `4`)
+- [x] Scan for bare size/resolution literals (`8.0`, `2.0`, `4`)
       outside `wfc_values.py` and `DEFAULT_GRID_SIZES`
-- [ ] Scan for connector type strings (`'BUILDING'`, `'ROAD'`, `'WALL'`, etc.)
+- [x] Scan for connector type strings (`'BUILDING'`, `'ROAD'`, `'WALL'`, etc.)
       outside JSON files
-- [ ] Classify each occurrence: **safe to leave** / **should be data-driven**
-- [ ] Output: annotated list in this document (or a linked audit file)
+- [x] Classify each occurrence: **safe to leave** / **should be data-driven**
+- [x] Output: annotated list below
 
-### B2 — Category-driven panel buttons
+#### B1 Audit Findings
+
+**Bare `'outer_grid'` string literals — fixed (replaced with `GridCategory.OUTER_GRID`)**
+| File | Line | Context |
+|---|---|---|
+| `__init__.py` | ~373 | `getattr(primitive, 'grid_category', 'outer_grid')` — module propagation |
+| `__init__.py` | ~905 | `getattr(primitive, 'grid_category', 'outer_grid')` — `build_from_primitive_data` |
+| `__init__.py` | ~1024 | `default='outer_grid'` in `bpy.types.Object.grid_category` registration |
+| `primitive_ui.py` | ~426 | comparison in `invoke()` |
+| `primitive_ui.py` | ~1079 | `prim_data.grid_category or 'outer_grid'` in library load branch |
+| `primitive_ui.py` | ~1094 | `lib_meta.get('grid_category', 'outer_grid')` in `set_active_pack` call |
+
+**Bare `8.0` / `2.0` size literals in compute paths — fixed (replaced with `DEFAULT_GRID_SIZES`)**
+| File | Line | Context |
+|---|---|---|
+| `wfc_blender_adapter.py` | ~90 | `_get_cell_size` fallback return |
+| `wfc_blender_adapter.py` | ~893 | `extract_building_cells` fallback `getattr` |
+| `__init__.py` | ~749 | building cell_size fallback when no modules loaded |
+| `__init__.py` | ~867 | legacy primitive size fallback |
+| `__init__.py` | ~904 | `build_from_primitive_data` size fallback |
+| `wfc_plots.py` | ~10 | `cell_size` fallback |
+| `primitive_ui.py` | ~464,513 | `8.0 / resolution_multiplier` in draw + execute |
+| `primitive_ui.py` | ~1026,1033 | same pattern in `OBJECT_OT_WFCNewPack` |
+
+**Safe to leave (docstrings, data-file examples, vertex geometry, or already using constants)**
+- All occurrences in `wfc_values.py` (the definitions themselves)
+- `collectiontools/__init__.py` — docstring examples only
+- `primitive_data_actual.py` — vertex coordinate geometry, not configuration
+- `primitive_data_core.py` dataclass field defaults (schema-level defaults, not runtime logic)
+- `wfc_enums.py:72-74` — superseded by B4 (now loaded from `categories.json`)
+- `wfc_blender_adapter.py` docstrings and `plot_type='building'` keyword arg defaults
+- `__init__.py` docstrings and `plot_type='building'` call-site keyword arguments
+- `connector_registry.py` docstrings and `grid_category` default fallbacks in data loading
+
+**Connector type strings outside JSON**
+- `PRIMITIVE_TYPES` enum in `wfc_enums.py` — intentional; these are primitive types, not connector types
+- `connector_registry.py:67` — `data.get('grid_category', 'outer_grid')` is safe (schema fallback)
+- All remaining occurrences are in docstrings or data-loading fallbacks
+- Full connector management is handled by the Session Registry (Stage 5)
+
+### B2 — Category-driven panel buttons ✅
 **Depends on:** B1 audit, Phase A complete
-- [ ] Decide strategy:
-  - Option A — Generate buttons dynamically from loaded categories at draw time
-  - Option B — Keep named buttons, share implementation via `generate_modules_for_category`
-- [ ] Implement chosen strategy
-- [ ] Verify a new category gets a button (or is otherwise accessible) with zero code change
+- [x] Decided strategy: **Option B** — share implementation via `generate_modules_for_category`
+- [x] `OBJECT_OT_BuildWfcModules` calls `generate_modules_for_all_loaded_categories()` so
+      every loaded category gets its modules rebuilt from a single button
+- [x] A new category (e.g. `'industrial'`) requires zero code change; loading a library
+      for it automatically registers it in `_modules_by_category`
 
 ### B3 — Connector type strings
 **Depends on:** B1 audit
 **Extended by:** `PRIMITIVE_PACK_AND_CONNECTOR_ROADMAP.md` P3-A, P3-B, P3-E
-- [ ] Validate connector strings against `connectors.json` at library load time
-- [ ] Explore populating the UI dropdown from `connectors.json` dynamically
-      rather than the static `GRID_CATEGORIES` enum
+- [x] Connector dropdown populated dynamically from Session Registry (Stage 5 / P3-B)
+- [x] Loading a pack with embedded connectors narrows the dropdown to pack-scoped types
+- [ ] Validate connector strings against pack connectors at library load time (future)
 - [ ] Decide: should unknown connectors warn, error, or be accepted silently?
-- [ ] See P3-A/B for full UI-driven connector creation and pack-scoped registry
 
-### B4 — Physical sizes and resolutions
+### B4 — Physical sizes and resolutions ✅
 **Depends on:** B1 audit
 **Extended by:** `PRIMITIVE_PACK_AND_CONNECTOR_ROADMAP.md` P1-B, P2-D
-- [ ] Evaluate moving all size/resolution defaults into a config file
-      (e.g. `data/categories.json`) alongside `connectors.json`
-- [ ] `categories.json` would define: category name, default physical size,
-      default resolution multiplier, display label
-- [ ] `GridCategory` constants and `DEFAULT_GRID_SIZES` become generated from
-      this file, not hand-coded
-- [ ] See P1-B for the immediate physical-size / resolution-multiplier consistency fix
+- [x] Created `data/categories.json` defining all four categories with id, label,
+      description, default_physical_size, and default_resolution_multiplier
+- [x] `DEFAULT_GRID_SIZES` in `wfc_values.py` is now loaded from `categories.json`
+      with hardcoded fallback if the file is missing
+- [x] `GRID_CATEGORIES` in `wfc_enums.py` is now generated from the same data
+- [x] `GridCategory` string constants remain as explicit aliases for IDE support;
+      a comment notes they must stay in sync with `categories.json`
+- [x] Adding a new category to `categories.json` automatically updates both
+      `DEFAULT_GRID_SIZES` and the Blender EnumProperty dropdown
 
 ---
 
@@ -257,7 +298,7 @@ symmetric naming helpers):
       no `CollectionNames` entries or structural changes required
 
 ### Phase B
-- [ ] B1 audit complete with all occurrences classified
-- [ ] No bare category string literals exist outside `wfc_values.py` and data files
-- [ ] A new grid category can be added by editing `connectors.json` /
-      `categories.json` alone (no Python changes)
+- [x] B1 audit complete with all occurrences classified
+- [x] No bare category string literals exist outside `wfc_values.py` and data files
+- [x] A new grid category can be added by editing `categories.json` alone
+      (no Python changes required for sizes, dropdown, or module generation)

@@ -23,7 +23,7 @@ from .collectiontools.collection_creation import (
     get_collection_by_name,
 )
 from .collectiontools import ensure_grid_collection
-from .wfc_values import CollectionNames, GridCategory
+from .wfc_values import CollectionNames, GridCategory, DEFAULT_GRID_SIZES
 from mathutils import Vector
 
 
@@ -83,11 +83,12 @@ class BlenderWFCAdapter:
         (e.g. grid visualization, island size calculation).
 
         Returns:
-            physical_size of the first available module, or 8.0 as fallback
+            physical_size of the first available module, or the outer-grid default
+            from DEFAULT_GRID_SIZES as fallback.
         """
         if self.blender_module_map:
             return next(iter(self.blender_module_map.values())).physical_size
-        return 8.0  # Default outer grid size
+        return DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
 
     def build_algorithm_module_pairs(self, algorithm_modules):
         """
@@ -890,7 +891,7 @@ class BlenderWFCAdapter:
             if getattr(obj_source, 'primitive_type', 'NONE') != 'BUILDING':
                 continue
 
-            physical_size = getattr(blender_module, 'physical_size', 8.0)
+            physical_size = getattr(blender_module, 'physical_size', DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])
             entry = {
                 'outer_cell_coords': coords,
                 # Outer modules are placed at (cell.x * size, cell.y * size, 0)

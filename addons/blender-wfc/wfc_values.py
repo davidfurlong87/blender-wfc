@@ -1,4 +1,6 @@
 from enum import Enum
+import json
+import os as _os
 
 
 bl_category_name = "wfc"
@@ -82,13 +84,39 @@ class GridCategory:
     ROAD_DETAIL = 'road_detail'
 
 
-DEFAULT_GRID_SIZES = {
-    GridCategory.OUTER_GRID:  8.0,
-    GridCategory.BUILDING:    2.0,
-    GridCategory.PARK:        1.0,
-    GridCategory.ROAD_DETAIL: 4.0,
+def _load_categories_data() -> list:
+    """Load category definitions from data/categories.json.
+
+    Falls back to a hardcoded list if the file is missing or malformed so the
+    add-on always has sensible defaults.
+    """
+    _FALLBACK = [
+        {"id": "outer_grid",   "label": "Outer Grid",   "description": "Main city layout grid (default 8m cells)",   "default_physical_size": 8.0, "default_resolution_multiplier": 1},
+        {"id": "building",     "label": "Building",     "description": "Interior building grid (default 2m cells)",  "default_physical_size": 2.0, "default_resolution_multiplier": 4},
+        {"id": "park",         "label": "Park",         "description": "Park detail grid (default 1m cells)",        "default_physical_size": 1.0, "default_resolution_multiplier": 8},
+        {"id": "road_detail",  "label": "Road Detail",  "description": "Road detail grid (default 4m cells)",        "default_physical_size": 4.0, "default_resolution_multiplier": 2},
+    ]
+    try:
+        _data_dir = _os.path.join(_os.path.dirname(__file__), 'data')
+        _path = _os.path.join(_data_dir, 'categories.json')
+        with open(_path, 'r', encoding='utf-8') as _f:
+            return json.load(_f).get('categories', _FALLBACK)
+    except Exception:
+        return _FALLBACK
+
+
+#: Raw list of category dicts loaded from ``data/categories.json``.
+#: Other modules (e.g. ``wfc_enums``) can import this to avoid re-reading the file.
+CATEGORIES_DATA: list = _load_categories_data()
+
+DEFAULT_GRID_SIZES: dict = {
+    cat['id']: cat['default_physical_size']
+    for cat in CATEGORIES_DATA
 }
 """Reference mapping of grid category → default physical_size in meters.
+
+Loaded from ``data/categories.json``; falls back to hardcoded values if the
+file is unavailable.
 
 These are defaults only. Each primitive stores its own physical_size on
 the PrimitiveData object and the registered Blender object property.

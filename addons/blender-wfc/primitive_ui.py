@@ -18,7 +18,7 @@ See docs/features/PRIMITIVE_UI_REFACTORING_ANALYSIS.md for details.
 import bpy
 from bpy.props import EnumProperty, StringProperty, FloatProperty, IntProperty, BoolProperty
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES, PrimitiveDefinition
-from .wfc_values import bl_category_name
+from .wfc_values import bl_category_name, GridCategory, DEFAULT_GRID_SIZES
 from .primitive_data_actual import *
 
 # Import new persistence system (Phases 1-3)
@@ -423,7 +423,7 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
 
         if obj:
             # If the object already has category metadata, use it directly.
-            if obj.grid_category and obj.grid_category != 'outer_grid' or obj.physical_size != 8.0:
+            if obj.grid_category and obj.grid_category != GridCategory.OUTER_GRID or obj.physical_size != DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]:
                 self.physical_size          = obj.physical_size
                 self.grid_category          = obj.grid_category
                 self.resolution_multiplier  = obj.resolution_multiplier
@@ -461,9 +461,10 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         size_col.enabled = (self.resolution_multiplier == 1)
         row.prop(self, "resolution_multiplier")
         if self.resolution_multiplier > 1:
-            implied = 8.0 / self.resolution_multiplier
+            _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
+            implied = _outer / self.resolution_multiplier
             box.label(
-                text=f"Physical size auto-set to {implied:.4g}m  (8m ÷ {self.resolution_multiplier})",
+                text=f"Physical size auto-set to {implied:.4g}m  ({_outer:.4g}m ÷ {self.resolution_multiplier})",
                 icon='INFO'
             )
 
@@ -510,7 +511,7 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         obj.resolution_multiplier = self.resolution_multiplier
         obj.rotation_invariant = self.rotation_invariant
         if self.resolution_multiplier > 1:
-            obj.physical_size = 8.0 / self.resolution_multiplier
+            obj.physical_size = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID] / self.resolution_multiplier
         else:
             obj.physical_size = self.physical_size
 
@@ -1022,15 +1023,17 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
         col.enabled = (self.resolution_multiplier == 1)
         row.prop(self, "resolution_multiplier")
         if self.resolution_multiplier > 1:
+            _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
             layout.label(
-                text=f"Physical size: {8.0 / self.resolution_multiplier:.4g}m  (8m ÷ {self.resolution_multiplier})",
+                text=f"Physical size: {_outer / self.resolution_multiplier:.4g}m  ({_outer:.4g}m ÷ {self.resolution_multiplier})",
                 icon='INFO',
             )
 
     def execute(self, context):
         from .pack_state import set_active_pack
         from .connector_registry import clear_session_registry
-        size = (8.0 / self.resolution_multiplier) if self.resolution_multiplier > 1 else self.physical_size
+        _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
+        size = (_outer / self.resolution_multiplier) if self.resolution_multiplier > 1 else self.physical_size
         set_active_pack(
             name=self.pack_name,
             category=self.category,
@@ -1076,7 +1079,7 @@ class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
             obj, errors = adapter.create_blender_object_from_primitive(prim_data)
             if obj:
                 from .collectiontools import ensure_primitives_collection
-                col = ensure_primitives_collection(prim_data.grid_category or 'outer_grid')
+                col = ensure_primitives_collection(prim_data.grid_category or GridCategory.OUTER_GRID)
                 from .collectiontools.collection_creation import link_object_to_single_collection
                 link_object_to_single_collection(obj, col)
                 created.append(obj)
@@ -1091,7 +1094,7 @@ class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
         res  = int(lib_meta.get('resolution_multiplier', 1))
         set_active_pack(
             name=lib_meta.get('library_name', 'Loaded Pack'),
-            category=lib_meta.get('grid_category', 'outer_grid'),
+            category=lib_meta.get('grid_category', GridCategory.OUTER_GRID),
             filepath=self.filepath,
             physical_size=size,
             resolution_multiplier=res,

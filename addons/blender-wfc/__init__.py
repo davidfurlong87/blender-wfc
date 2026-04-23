@@ -370,7 +370,7 @@ def generate_modules_for_category(category: str) -> None:
             # can read it without needing the original primitive.
             module_obj.primitive_type = getattr(primitive, 'primitive_type', 'NONE')
             module_obj.resolution_multiplier = getattr(primitive, 'resolution_multiplier', 1)
-            module_obj.grid_category = getattr(primitive, 'grid_category', 'outer_grid')
+            module_obj.grid_category = getattr(primitive, 'grid_category', GridCategory.OUTER_GRID)
 
             # Propagate vertex groups so _extract_plot_faces_from_module() can
             # find e.g. 'building_plot' on the generated module objects.  The
@@ -746,7 +746,7 @@ class OBJECT_OT_GenerateBuildingInnerGrid(bpy.types.Operator):
         total_collapsed = 0
         from .collectiontools import ensure_grid_collection
         grid_collection = ensure_grid_collection(GridCategory.BUILDING)
-        cell_size = all_building_modules[0].physical_size if all_building_modules else 2.0
+        cell_size = all_building_modules[0].physical_size if all_building_modules else DEFAULT_GRID_SIZES[GridCategory.BUILDING]
         half = cell_size / 2
 
         for island in islands:
@@ -861,10 +861,10 @@ def build_all_primitives():
     primitives = build_default_primitives()
     
     for i, primitive in enumerate(primitives):
-        # Use physical_size if available (PrimitiveData), fall back to 8.0 for
-        # legacy Primitive objects from build_default_primitives() which predate
-        # the metadata system.
-        size = getattr(primitive, 'physical_size', 8.0)
+        # Use physical_size if available (PrimitiveData), fall back to the outer-grid
+        # default for legacy Primitive objects from build_default_primitives() which
+        # predate the metadata system.
+        size = getattr(primitive, 'physical_size', DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])
         display_spacing = size * 2
         build_from_primitive_data(primitive, primitives_collection,
                          location=(
@@ -901,8 +901,8 @@ def build_from_primitive_data(primitive, primitives_collection, location):
     mesh_obj.y_neg_connector = primitive.neg_y_connector
     # Set sizing and symmetry metadata. Use getattr fallbacks for legacy
     # Primitive objects (from build_default_primitives) that predate PrimitiveData.
-    mesh_obj.physical_size = getattr(primitive, 'physical_size', 8.0)
-    mesh_obj.grid_category = getattr(primitive, 'grid_category', 'outer_grid')
+    mesh_obj.physical_size = getattr(primitive, 'physical_size', DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])
+    mesh_obj.grid_category = getattr(primitive, 'grid_category', GridCategory.OUTER_GRID)
     mesh_obj.resolution_multiplier = getattr(primitive, 'resolution_multiplier', 1)
     mesh_obj.rotation_invariant = getattr(primitive, 'rotation_invariant', False)
     apply_vertex_groups_to_object(mesh_obj, primitive.vertex_group_data)
@@ -1021,7 +1021,7 @@ def register():
         name="Grid Category",
         description="Which grid system this primitive belongs to",
         items=GRID_CATEGORIES,
-        default='outer_grid'
+        default=GridCategory.OUTER_GRID
     )
     bpy.types.Object.resolution_multiplier = IntProperty(
         name="Resolution Multiplier",

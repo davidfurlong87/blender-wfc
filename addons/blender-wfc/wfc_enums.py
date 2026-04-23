@@ -68,14 +68,33 @@ def get_connector_enum_items(self=None, context=None):
     # Fallback: return the hardcoded defaults
     return CONNECTORS
 
-GRID_CATEGORIES = [
-    ('outer_grid',   "Outer Grid",   "Main city layout grid (default 8m cells)"),
-    ('building',     "Building",     "Interior building grid (default 2m cells)"),
-    ('park',         "Park",         "Park detail grid (default 1m cells)"),
-    ('road_detail',  "Road Detail",  "Road detail grid (default 4m cells)"),
-]
+def _build_grid_categories() -> list:
+    """Build GRID_CATEGORIES enum items from ``data/categories.json``.
+
+    Falls back to a hardcoded list if the data module is unavailable (e.g. during
+    Blender registration before the add-on path is on sys.path).
+    """
+    _FALLBACK = [
+        ('outer_grid',   "Outer Grid",   "Main city layout grid (default 8m cells)"),
+        ('building',     "Building",     "Interior building grid (default 2m cells)"),
+        ('park',         "Park",         "Park detail grid (default 1m cells)"),
+        ('road_detail',  "Road Detail",  "Road detail grid (default 4m cells)"),
+    ]
+    try:
+        from .wfc_values import CATEGORIES_DATA
+        items = [(c['id'], c['label'], c['description']) for c in CATEGORIES_DATA]
+        return items if items else _FALLBACK
+    except (ImportError, SystemError, KeyError):
+        return _FALLBACK
+
+
+GRID_CATEGORIES: list = _build_grid_categories()
 """Grid category enum items for Blender EnumProperty.
-Must stay in sync with VALID_CATEGORIES in primitive_data_core.py."""
+
+Loaded from ``data/categories.json`` via ``wfc_values.CATEGORIES_DATA``.
+A new category added to ``categories.json`` automatically appears in all
+EnumProperty dropdowns — no Python changes required.
+"""
 
 
 class PrimitiveModules(Enum):
