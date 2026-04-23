@@ -141,6 +141,50 @@ class OBJECT_PT_WFCPackPanel(bpy.types.Panel):
 
 
 # ============================================================================
+# Connector Registry sub-panel (Stage 5 — P3-A / P3-C)
+# ============================================================================
+
+class OBJECT_PT_WFCConnectorRegistryPanel(bpy.types.Panel):
+    """Collapsible sub-panel showing the active pack's connector registry.
+    Allows adding, renaming, and deleting connectors without editing JSON."""
+    bl_label = "Connector Registry"
+    bl_idname = "OBJECT_PT_WFCConnectorRegistryPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = bl_category_name
+    bl_parent_id = "OBJECT_PT_WFCPackPanel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        from .pack_state import has_active_pack
+        return has_active_pack()
+
+    def draw(self, context):
+        from .connector_registry import get_active_registry
+        layout = self.layout
+        reg = get_active_registry()
+        connectors = sorted(reg.connectors.values(), key=lambda c: c.name)
+
+        if not connectors:
+            layout.label(text="No connectors defined", icon='INFO')
+        else:
+            box = layout.box()
+            for conn in connectors:
+                row = box.row(align=True)
+                compat = ', '.join(conn.compatible_with) if conn.compatible_with else '—'
+                # Name + compact compatible-with summary
+                row.label(text=conn.name, icon='SYSTEM')
+                row.label(text=compat)
+                op = row.operator("object.wfc_rename_connector", text="", icon='GREASEPENCIL')
+                op.connector_name = conn.name
+                op = row.operator("object.wfc_delete_connector", text="", icon='X')
+                op.connector_name = conn.name
+
+        layout.operator("object.wfc_add_connector", text="Add Connector", icon='ADD')
+
+
+# ============================================================================
 # Primitive Builder panel
 # ============================================================================
 
@@ -750,6 +794,201 @@ class OBJECT_OT_WFCLoadPrimitive(bpy.types.Operator):
 
 
 # ============================================================================
+# Connector registry helpers (Stage 5 — P3-A / P3-C)
+# ============================================================================
+
+def _primitives_using_connector(connector_name: str, category: str) -> list:
+    """Return names of mesh objects in *category*'s primitives collection
+    whose connector fields (any of ±X / ±Y) match *connector_name*.
+
+    Returns an empty list if the collection does not exist or is empty.
+    """
+    _CONNECTOR_FIELDS = (
+        'x_pos_connector', 'x_neg_connector',
+        'y_pos_connector', 'y_neg_connector',
+    )
+    try:
+        from .collectiontools import ensure_primitives_collection
+        col = ensure_primitives_collection(category)
+        return [
+            obj.name
+            for obj in col.objects
+            if obj.type == 'MESH'
+            and any(getattr(obj, f, '') == connector_name for f in _CONNECTOR_FIELDS)
+        ]
+    except Exception:
+        return []
+
+
+# ============================================================================
+# Connector management operators (Stage 5 — P3-A / P3-C)
+# ============================================================================
+
+class OBJECT_OT_WFCAddConnector(bpy.types.Operator):
+    """Add a new connector to the active pack's registry"""
+    bl_idname = "object.wfc_add_connector"
+    bl_label = "Add Connector"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    name: StringProperty(name="Name", default="NEW_CONNECTOR")  # type: ignore
+    description: StringProperty(name="Description", default="")  # type: ignore
+    compatible_with: StringProperty(
+        name="Compatible With",
+        description="Comma-separated names of connectors this one can pair with",
+        default="",
+    )  # type: ignore
+    grid_category: EnumProperty(
+        name="Grid Category", items=GRID_CATEGORIES, default='building'
+    )  # type: ignore
+    is_symmetric: BoolProperty(name="Symmetric", default=True)  # type: ignore
+
+    def invoke(self, context, event):
+        from .pack_state import get_active_pack
+        pack = get_active_pack()
+        if pack:
+            self.grid_category = pack['category']
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "name")
+        layout.prop(self, "description")
+        layout.prop(self, "compatible_with")
+        layout.label(text="Separate multiple names with commas, e.g.  WALL, DOOR", icon='INFO')
+        layout.prop(self, "grid_category")
+        layout.prop(self, "is_symmetric")
+
+    def execute(self, context):
+        from .connector_registry import (
+            ConnectorDefinition, ensure_mutable_session_registry,
+        )
+        name = self.name.strip().upper().replace(' ', '_')
+        if not name:
+            self.report({'ERROR'}, "Connector name cannot be empty")
+            return {'CANCELLED'}
+
+        compat = [
+            c.strip().upper().replace(' ', '_')
+            for c in self.compatible_with.split(',')
+            if c.strip()
+        ]
+        new_def = ConnectorDefinition(
+            name=name,
+            description=self.description.strip(),
+            compatible_with=compat,
+            grid_category=self.grid_category,
+            is_symmetric=self.is_symmetric,
+        )
+        reg = ensure_mutable_session_registry()
+        already_exists = name in reg.connectors
+        reg.register(new_def)
+        action = "updated" if already_exists else "added"
+        self.report({'INFO'}, f"Connector '{name}' {action}")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCDeleteConnector(bpy.types.Operator):
+    """Delete a connector from the active registry.
+    Blocked when any primitive in the active pack currently uses it."""
+    bl_idname = "object.wfc_delete_connector"
+    bl_label = "Delete Connector"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    connector_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        from .connector_registry import ensure_mutable_session_registry
+        from .pack_state import get_active_pack
+
+        pack = get_active_pack()
+        if pack:
+            using = _primitives_using_connector(self.connector_name, pack['category'])
+            if using:
+                sample = ', '.join(using[:3])
+                suffix = '…' if len(using) > 3 else ''
+                self.report(
+                    {'ERROR'},
+                    f"Cannot delete '{self.connector_name}': "
+                    f"used by {len(using)} primitive(s): {sample}{suffix}",
+                )
+                return {'CANCELLED'}
+
+        reg = ensure_mutable_session_registry()
+        if reg.unregister(self.connector_name):
+            self.report({'INFO'}, f"Connector '{self.connector_name}' deleted")
+            return {'FINISHED'}
+        self.report({'ERROR'}, f"Connector '{self.connector_name}' not found")
+        return {'CANCELLED'}
+
+
+class OBJECT_OT_WFCRenameConnector(bpy.types.Operator):
+    """Rename a connector and automatically update every primitive that uses it"""
+    bl_idname = "object.wfc_rename_connector"
+    bl_label = "Rename Connector"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    connector_name: StringProperty()  # type: ignore
+    new_name: StringProperty(name="New Name")  # type: ignore
+
+    def invoke(self, context, event):
+        self.new_name = self.connector_name
+        return context.window_manager.invoke_props_dialog(self, width=320)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text=f"Renaming: {self.connector_name}", icon='SYSTEM')
+        layout.prop(self, "new_name")
+
+    def execute(self, context):
+        from .connector_registry import ensure_mutable_session_registry
+        from .pack_state import get_active_pack
+
+        new_name = self.new_name.strip().upper().replace(' ', '_')
+        if not new_name:
+            self.report({'ERROR'}, "Name cannot be empty")
+            return {'CANCELLED'}
+        if new_name == self.connector_name:
+            return {'FINISHED'}
+
+        reg = ensure_mutable_session_registry()
+        if not reg.rename(self.connector_name, new_name):
+            self.report(
+                {'ERROR'},
+                f"Could not rename: '{self.connector_name}' not found "
+                f"or '{new_name}' already exists",
+            )
+            return {'CANCELLED'}
+
+        # Update every connector field on every primitive in the active pack
+        updated_fields = 0
+        pack = get_active_pack()
+        if pack:
+            _FIELDS = ('x_pos_connector', 'x_neg_connector',
+                       'y_pos_connector', 'y_neg_connector')
+            try:
+                from .collectiontools import ensure_primitives_collection
+                col = ensure_primitives_collection(pack['category'])
+                for obj in col.objects:
+                    if obj.type == 'MESH':
+                        for field in _FIELDS:
+                            if getattr(obj, field, '') == self.connector_name:
+                                setattr(obj, field, new_name)
+                                updated_fields += 1
+            except Exception as exc:
+                self.report(
+                    {'WARNING'},
+                    f"Registry updated but could not patch primitives: {exc}",
+                )
+                return {'FINISHED'}
+
+        msg = f"Renamed '{self.connector_name}' → '{new_name}'"
+        if updated_fields:
+            msg += f"  ({updated_fields} primitive field(s) updated)"
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+# ============================================================================
 # Pack management operators (Stage 4 — P2-B)
 # ============================================================================
 
@@ -1110,13 +1349,18 @@ PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCSelectPrimitive,
     OBJECT_OT_WFCRenamePrimitive,
     OBJECT_OT_WFCDeletePrimitive,
+    # Connector registry management (Stage 5 — P3-A / P3-C)
+    OBJECT_OT_WFCAddConnector,
+    OBJECT_OT_WFCDeleteConnector,
+    OBJECT_OT_WFCRenameConnector,
     # Deprecated
     OBJECT_OT_WFCConvertToPrimitive,
 ]
 
 PRIMITIVE_PANELS = [
-    OBJECT_PT_WFCPackPanel,           # bl_order = 0 — appears first
-    OBJECT_PT_WFCPrimitiveBuilderPanel,  # bl_order = 1
+    OBJECT_PT_WFCPackPanel,                  # bl_order = 0 — appears first
+    OBJECT_PT_WFCConnectorRegistryPanel,     # sub-panel of PackPanel
+    OBJECT_PT_WFCPrimitiveBuilderPanel,      # bl_order = 1
 ]
 
 

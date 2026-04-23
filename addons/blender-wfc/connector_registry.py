@@ -268,6 +268,51 @@ class ConnectorRegistry:
             print(f"Error loading connector registry: {e}")
             return False
 
+    def unregister(self, name: str) -> bool:
+        """Remove a connector by name.
+
+        Args:
+            name: Connector name to remove.
+
+        Returns:
+            ``True`` if the connector was found and removed, ``False`` if it
+            did not exist.
+        """
+        if name in self.connectors:
+            del self.connectors[name]
+            return True
+        return False
+
+    def rename(self, old_name: str, new_name: str) -> bool:
+        """Rename a connector and update all ``compatible_with`` cross-references.
+
+        Args:
+            old_name: Current connector name.
+            new_name: Desired new name.
+
+        Returns:
+            ``True`` on success.  ``False`` if *old_name* is not registered or
+            *new_name* is already taken by a different connector.
+        """
+        if old_name not in self.connectors:
+            return False
+        if new_name != old_name and new_name in self.connectors:
+            return False
+
+        connector = self.connectors.pop(old_name)
+        connector.name = new_name
+
+        # Update every compatible_with list that references the old name,
+        # including the connector's own self-reference if present.
+        for cd in list(self.connectors.values()) + [connector]:
+            cd.compatible_with = [
+                new_name if c == old_name else c
+                for c in cd.compatible_with
+            ]
+
+        self.connectors[new_name] = connector
+        return True
+
     def __repr__(self) -> str:
         """String representation for debugging"""
         return f"ConnectorRegistry({len(self.connectors)} connectors: {', '.join(self.get_all_names())})"
@@ -315,3 +360,22 @@ def clear_session_registry() -> None:
     """
     global _session_registry
     _session_registry = None
+
+
+def ensure_mutable_session_registry() -> ConnectorRegistry:
+    """Return a session registry that is safe to mutate.
+
+    If no session registry exists yet, creates one by shallow-copying the
+    global defaults so that the globals are never altered directly.  Operators
+    that add, delete, or rename connectors should always call this instead of
+    ``get_active_registry()``.
+
+    Returns:
+        The current session registry (possibly newly created).
+    """
+    global _session_registry
+    if _session_registry is None:
+        new_reg = ConnectorRegistry.__new__(ConnectorRegistry)
+        new_reg.connectors = dict(connector_registry.connectors)
+        _session_registry = new_reg
+    return _session_registry
