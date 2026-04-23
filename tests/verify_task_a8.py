@@ -53,7 +53,10 @@ print()
 print("Single-primitive path — correct collection:")
 
 check("ensure_primitives_collection imported in single branch",
-      src.count("from .collectiontools import ensure_primitives_collection") == 2)
+      # A8 originally required exactly 2 lazy imports (one per load branch).
+      # Stage 4 added WFCLoadPack, WFCSavePack, and the Pack panel — all of
+      # which also use ensure_primitives_collection — so the count is now >= 2.
+      src.count("from .collectiontools import ensure_primitives_collection") >= 2)
 
 check("prim_collection resolved from primitive_data.grid_category",
       "prim_collection = ensure_primitives_collection(primitive_data.grid_category)" in src)
@@ -95,12 +98,14 @@ check("OBJECT_OT_WFCLoadPrimitive still registered",
 print()
 print("Consistency:")
 usage_count = src.count("ensure_primitives_collection(")
-check("ensure_primitives_collection called exactly twice in file",
-      usage_count == 2, f"found {usage_count}")
+check("ensure_primitives_collection called at least twice in file",
+      # Stage 4 added WFCLoadPack, WFCSavePack, and the Pack panel — all
+      # legitimate users — so the minimum count grew from 2 to 5.
+      usage_count >= 2, f"found {usage_count}")
 
 import_count = src.count("from .collectiontools import ensure_primitives_collection")
-check("imported twice (once per branch, lazy import)",
-      import_count == 2, f"found {import_count}")
+check("imported at least twice (lazy imports across operators)",
+      import_count >= 2, f"found {import_count}")
 
 
 # ── Final ─────────────────────────────────────────────────────────────────────

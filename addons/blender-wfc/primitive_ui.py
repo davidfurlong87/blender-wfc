@@ -66,6 +66,84 @@ def is_primitive_complete(obj):
 # Panel
 # ============================================================================
 
+# ============================================================================
+# Pack panel (Stage 4 — P2-B / P2-C)
+# ============================================================================
+
+class OBJECT_PT_WFCPackPanel(bpy.types.Panel):
+    """Shows the active pack name, metadata, and the list of its primitives."""
+    bl_label = "WFC Pack"
+    bl_idname = "OBJECT_PT_WFCPackPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = bl_category_name
+    bl_order = 0  # appears above Primitive Builder (bl_order = 1)
+
+    def draw(self, context):
+        from .pack_state import get_active_pack
+        layout = self.layout
+        pack = get_active_pack()
+
+        # ── Header ───────────────────────────────────────────────────────────
+        header = layout.box()
+        if pack:
+            row = header.row()
+            row.label(text=pack['name'], icon='PACKAGE')
+            row.operator("object.wfc_rename_pack", text="", icon='GREASEPENCIL')
+            header.label(
+                text=f"{pack['category']}  |  {pack['physical_size']}m  |  ×{pack['resolution_multiplier']}",
+                icon='INFO',
+            )
+            row = header.row(align=True)
+            row.operator("object.wfc_load_pack",  text="Load",  icon='FILEBROWSER')
+            row.operator("object.wfc_save_pack",  text="Save",  icon='FILE_TICK')
+            row.operator("object.wfc_new_pack",   text="New",   icon='ADD')
+        else:
+            header.label(text="No active pack", icon='INFO')
+            row = header.row(align=True)
+            row.operator("object.wfc_new_pack",  text="New Pack",  icon='ADD')
+            row.operator("object.wfc_load_pack", text="Load Pack", icon='FILEBROWSER')
+            return  # nothing more to show when no pack is active
+
+        # ── Primitive list ────────────────────────────────────────────────────
+        layout.separator()
+        layout.label(text="Primitives:", icon='OBJECT_DATA')
+
+        try:
+            from .collectiontools import ensure_primitives_collection
+            col = ensure_primitives_collection(pack['category'])
+            objects = sorted(
+                [o for o in col.objects if o.type == 'MESH'],
+                key=lambda o: o.name,
+            )
+        except Exception:
+            objects = []
+
+        if not objects:
+            layout.label(text="No primitives yet — create or load some", icon='INFO')
+        else:
+            box = layout.box()
+            for obj in objects:
+                ptype          = getattr(obj, 'primitive_type', 'NONE') or 'NONE'
+                has_connectors = bool(getattr(obj, 'x_pos_connector', ''))
+                complete       = ptype != 'NONE' and has_connectors
+                row = box.row(align=True)
+                row.label(
+                    text=f"{obj.name}  [{ptype}]",
+                    icon='CHECKMARK' if complete else 'ERROR',
+                )
+                op = row.operator("object.wfc_select_primitive",  text="", icon='RESTRICT_SELECT_OFF')
+                op.primitive_name = obj.name
+                op = row.operator("object.wfc_rename_primitive",  text="", icon='GREASEPENCIL')
+                op.primitive_name = obj.name
+                op = row.operator("object.wfc_delete_primitive",  text="", icon='X')
+                op.primitive_name = obj.name
+
+
+# ============================================================================
+# Primitive Builder panel
+# ============================================================================
+
 class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
     """Panel for creating and managing WFC primitives"""
     bl_label = "Primitive Builder"
@@ -73,6 +151,7 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = bl_category_name
+    bl_order = 1  # appears below the Pack panel (bl_order = 0)
 
     def draw(self, context):
         layout = self.layout
@@ -291,19 +370,34 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
     def invoke(self, context, event):
         obj = context.object
 
-        # Pre-populate connectors with existing values if assigned
+        # Pre-populate connectors with existing values if already assigned
         if obj and has_connectors_assigned(obj):
             self.pos_x = obj.x_pos_connector
             self.neg_x = obj.x_neg_connector
             self.pos_y = obj.y_pos_connector
             self.neg_y = obj.y_neg_connector
 
-        # NEW: Pre-populate sizing and symmetry metadata (Task 3A.1 Step 3)
         if obj:
-            self.physical_size = obj.physical_size
-            self.grid_category = obj.grid_category
-            self.resolution_multiplier = obj.resolution_multiplier
-            self.rotation_invariant = obj.rotation_invariant
+            # If the object already has category metadata, use it directly.
+            if obj.grid_category and obj.grid_category != 'outer_grid' or obj.physical_size != 8.0:
+                self.physical_size          = obj.physical_size
+                self.grid_category          = obj.grid_category
+                self.resolution_multiplier  = obj.resolution_multiplier
+                self.rotation_invariant     = obj.rotation_invariant
+            else:
+                # Fall back to active pack defaults (P2-D) so new primitives
+                # created inside a pack are pre-configured correctly.
+                from .pack_state import get_active_pack
+                pack = get_active_pack()
+                if pack:
+                    self.grid_category          = pack['category']
+                    self.physical_size          = pack['physical_size']
+                    self.resolution_multiplier  = pack['resolution_multiplier']
+                else:
+                    self.physical_size          = obj.physical_size
+                    self.grid_category          = obj.grid_category
+                    self.resolution_multiplier  = obj.resolution_multiplier
+                    self.rotation_invariant     = obj.rotation_invariant
 
         return context.window_manager.invoke_props_dialog(self, width=400)
 
@@ -655,6 +749,322 @@ class OBJECT_OT_WFCLoadPrimitive(bpy.types.Operator):
                 return {'CANCELLED'}
 
 
+# ============================================================================
+# Pack management operators (Stage 4 — P2-B)
+# ============================================================================
+
+class OBJECT_OT_WFCNewPack(bpy.types.Operator):
+    """Create a new empty primitive pack and set it as the active pack"""
+    bl_idname = "object.wfc_new_pack"
+    bl_label = "New Pack"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    pack_name: StringProperty(name="Pack Name", default="My Pack")  # type: ignore
+    category: EnumProperty(
+        name="Grid Category", items=GRID_CATEGORIES, default='building'
+    )  # type: ignore
+    physical_size: FloatProperty(
+        name="Physical Size (m)", default=2.0, min=0.1, soft_max=100.0
+    )  # type: ignore
+    resolution_multiplier: IntProperty(
+        name="Resolution Multiplier", default=4, min=1, soft_max=16
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=360)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "pack_name")
+        layout.prop(self, "category")
+        row = layout.row(align=True)
+        col = row.column(align=True)
+        col.prop(self, "physical_size")
+        col.enabled = (self.resolution_multiplier == 1)
+        row.prop(self, "resolution_multiplier")
+        if self.resolution_multiplier > 1:
+            layout.label(
+                text=f"Physical size: {8.0 / self.resolution_multiplier:.4g}m  (8m ÷ {self.resolution_multiplier})",
+                icon='INFO',
+            )
+
+    def execute(self, context):
+        from .pack_state import set_active_pack
+        from .connector_registry import clear_session_registry
+        size = (8.0 / self.resolution_multiplier) if self.resolution_multiplier > 1 else self.physical_size
+        set_active_pack(
+            name=self.pack_name,
+            category=self.category,
+            physical_size=size,
+            resolution_multiplier=self.resolution_multiplier,
+        )
+        clear_session_registry()
+        self.report({'INFO'}, f"Pack '{self.pack_name}' created  ({self.category})")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
+    """Load a primitive pack from a JSON file and set it as the active pack"""
+    bl_idname = "object.wfc_load_pack"
+    bl_label = "Load Pack"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})  # type: ignore
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        if not PERSISTENCE_AVAILABLE:
+            self.report({'ERROR'}, "Persistence system unavailable")
+            return {'CANCELLED'}
+
+        persistence = PrimitivePersistence()
+        primitives_list, lib_meta, load_errors = persistence.load_primitive_library(self.filepath)
+
+        for err in load_errors:
+            self.report({'WARNING'}, err)
+
+        if not primitives_list:
+            self.report({'ERROR'}, "No primitives found in file")
+            return {'CANCELLED'}
+
+        adapter = PrimitiveAdapter()
+        created = []
+        for prim_data in primitives_list:
+            obj, errors = adapter.create_blender_object_from_primitive(prim_data)
+            if obj:
+                from .collectiontools import ensure_primitives_collection
+                col = ensure_primitives_collection(prim_data.grid_category or 'outer_grid')
+                from .collectiontools.collection_creation import link_object_to_single_collection
+                link_object_to_single_collection(obj, col)
+                created.append(obj)
+
+        if not created:
+            self.report({'ERROR'}, "Failed to create any objects from pack")
+            return {'CANCELLED'}
+
+        # Activate the pack
+        from .pack_state import set_active_pack
+        size = float(lib_meta.get('physical_size', 8.0))
+        res  = int(lib_meta.get('resolution_multiplier', 1))
+        set_active_pack(
+            name=lib_meta.get('library_name', 'Loaded Pack'),
+            category=lib_meta.get('grid_category', 'outer_grid'),
+            filepath=self.filepath,
+            physical_size=size,
+            resolution_multiplier=res,
+        )
+
+        # Activate pack-scoped connector registry if embedded
+        connector_dicts = lib_meta.get('connectors')
+        connector_msg = ""
+        if connector_dicts:
+            from .connector_registry import ConnectorRegistry, ConnectorDefinition, set_session_registry
+            reg = ConnectorRegistry.__new__(ConnectorRegistry)
+            reg.connectors = {}
+            for cd in connector_dicts:
+                try:
+                    reg.register(ConnectorDefinition.from_dict(cd))
+                except Exception:
+                    pass
+            if reg.connectors:
+                set_session_registry(reg)
+                connector_msg = f", {len(reg.connectors)} connectors activated"
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in created:
+            obj.select_set(True)
+        context.view_layer.objects.active = created[-1]
+        self.report({'INFO'}, f"Loaded {len(created)} primitives from '{lib_meta.get('library_name', 'pack')}'{connector_msg}")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCSavePack(bpy.types.Operator):
+    """Save all complete primitives in the active pack to a JSON file"""
+    bl_idname = "object.wfc_save_pack"
+    bl_label = "Save Pack"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})  # type: ignore
+
+    def invoke(self, context, event):
+        from .pack_state import get_active_pack
+        pack = get_active_pack()
+        if pack and pack.get('filepath'):
+            self.filepath = pack['filepath']
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        from .pack_state import get_active_pack, update_active_pack_filepath
+        pack = get_active_pack()
+        if not pack:
+            self.report({'ERROR'}, "No active pack — create or load a pack first")
+            return {'CANCELLED'}
+        if not PERSISTENCE_AVAILABLE:
+            self.report({'ERROR'}, "Persistence system unavailable")
+            return {'CANCELLED'}
+
+        from .collectiontools import ensure_primitives_collection
+        col = ensure_primitives_collection(pack['category'])
+        adapter = PrimitiveAdapter()
+        primitives, skipped = [], []
+        for obj in col.objects:
+            if obj.type != 'MESH':
+                continue
+            prim_data, errors = adapter.extract_primitive_from_blender(obj)
+            if prim_data:
+                primitives.append(prim_data)
+            else:
+                skipped.append(f"{obj.name}: {'; '.join(errors)}")
+
+        if not primitives:
+            self.report({'ERROR'}, "No complete primitives found — assign type and connectors first")
+            return {'CANCELLED'}
+
+        from .connector_registry import get_active_registry
+        connector_dicts = [c.to_dict() for c in get_active_registry().connectors.values()]
+
+        persistence = PrimitivePersistence()
+        success, errors = persistence.save_primitive_library(
+            primitives=primitives,
+            filepath=self.filepath,
+            library_name=pack['name'],
+            connectors=connector_dicts,
+            metadata={
+                'grid_category': pack['category'],
+                'physical_size': str(pack['physical_size']),
+                'resolution_multiplier': str(pack['resolution_multiplier']),
+                'author': 'WFC Addon',
+                'version': '1.0',
+            },
+        )
+        if success:
+            update_active_pack_filepath(self.filepath)
+            msg = f"Saved {len(primitives)} primitive(s)"
+            if skipped:
+                msg += f"  ({len(skipped)} incomplete skipped)"
+            self.report({'INFO'}, msg)
+            return {'FINISHED'}
+
+        for err in errors:
+            self.report({'ERROR'}, err)
+        return {'CANCELLED'}
+
+
+class OBJECT_OT_WFCRenamePack(bpy.types.Operator):
+    """Rename the active pack"""
+    bl_idname = "object.wfc_rename_pack"
+    bl_label = "Rename Pack"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    new_name: StringProperty(name="New Name", default="")  # type: ignore
+
+    def invoke(self, context, event):
+        from .pack_state import get_active_pack
+        pack = get_active_pack()
+        self.new_name = pack['name'] if pack else ""
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def draw(self, context):
+        self.layout.prop(self, "new_name")
+
+    def execute(self, context):
+        from .pack_state import get_active_pack, set_active_pack
+        pack = get_active_pack()
+        if not pack:
+            self.report({'ERROR'}, "No active pack")
+            return {'CANCELLED'}
+        if not self.new_name.strip():
+            self.report({'ERROR'}, "Name cannot be empty")
+            return {'CANCELLED'}
+        set_active_pack(
+            name=self.new_name.strip(),
+            category=pack['category'],
+            filepath=pack.get('filepath'),
+            physical_size=pack['physical_size'],
+            resolution_multiplier=pack['resolution_multiplier'],
+        )
+        return {'FINISHED'}
+
+
+# ============================================================================
+# Primitive list operators (Stage 4 — P2-C)
+# ============================================================================
+
+class OBJECT_OT_WFCSelectPrimitive(bpy.types.Operator):
+    """Select this primitive in the viewport"""
+    bl_idname = "object.wfc_select_primitive"
+    bl_label = "Select"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    primitive_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        obj = bpy.data.objects.get(self.primitive_name)
+        if not obj:
+            self.report({'ERROR'}, f"Object '{self.primitive_name}' not found")
+            return {'CANCELLED'}
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCRenamePrimitive(bpy.types.Operator):
+    """Rename this primitive"""
+    bl_idname = "object.wfc_rename_primitive"
+    bl_label = "Rename Primitive"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    primitive_name: StringProperty()  # type: ignore
+    new_name: StringProperty(name="New Name")  # type: ignore
+
+    def invoke(self, context, event):
+        self.new_name = self.primitive_name
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def draw(self, context):
+        self.layout.prop(self, "new_name")
+
+    def execute(self, context):
+        if not self.new_name.strip():
+            self.report({'ERROR'}, "Name cannot be empty")
+            return {'CANCELLED'}
+        obj = bpy.data.objects.get(self.primitive_name)
+        if not obj:
+            self.report({'ERROR'}, f"Object '{self.primitive_name}' not found")
+            return {'CANCELLED'}
+        obj.name = self.new_name.strip()
+        if obj.data:
+            obj.data.name = self.new_name.strip()
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCDeletePrimitive(bpy.types.Operator):
+    """Remove this primitive from the scene"""
+    bl_idname = "object.wfc_delete_primitive"
+    bl_label = "Delete Primitive"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    primitive_name: StringProperty()  # type: ignore
+
+    def execute(self, context):
+        obj = bpy.data.objects.get(self.primitive_name)
+        if not obj:
+            self.report({'WARNING'}, f"Object '{self.primitive_name}' not found")
+            return {'CANCELLED'}
+        mesh = obj.data if obj.type == 'MESH' else None
+        bpy.data.objects.remove(obj, do_unlink=True)
+        if mesh and mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+        return {'FINISHED'}
+
+
 class OBJECT_OT_WFCConvertToPrimitive(bpy.types.Operator):
     """[DEPRECATED] Print primitive data to console (use Save to JSON instead)"""
     bl_idname = "object.wfc_convert_to_primitive"
@@ -685,16 +1095,28 @@ class OBJECT_OT_WFCConvertToPrimitive(bpy.types.Operator):
 # ============================================================================
 
 PRIMITIVE_OPERATORS = [
+    # Primitive authoring
     OBJECT_OT_WFCAssignPrimitiveType,
     OBJECT_OT_WFCAssignConnectors,
     OBJECT_OT_WFCCopyConnectors,
     OBJECT_OT_WFCSavePrimitive,
     OBJECT_OT_WFCLoadPrimitive,
-    OBJECT_OT_WFCConvertToPrimitive,  # Deprecated but kept for compatibility
+    # Pack management (Stage 4 — P2-B)
+    OBJECT_OT_WFCNewPack,
+    OBJECT_OT_WFCLoadPack,
+    OBJECT_OT_WFCSavePack,
+    OBJECT_OT_WFCRenamePack,
+    # Primitive list actions (Stage 4 — P2-C)
+    OBJECT_OT_WFCSelectPrimitive,
+    OBJECT_OT_WFCRenamePrimitive,
+    OBJECT_OT_WFCDeletePrimitive,
+    # Deprecated
+    OBJECT_OT_WFCConvertToPrimitive,
 ]
 
 PRIMITIVE_PANELS = [
-    OBJECT_PT_WFCPrimitiveBuilderPanel
+    OBJECT_PT_WFCPackPanel,           # bl_order = 0 — appears first
+    OBJECT_PT_WFCPrimitiveBuilderPanel,  # bl_order = 1
 ]
 
 
