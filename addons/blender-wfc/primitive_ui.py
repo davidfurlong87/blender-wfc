@@ -91,14 +91,34 @@ class OBJECT_PT_WFCPackPanel(bpy.types.Panel):
             row = header.row()
             row.label(text=pack['name'], icon='PACKAGE')
             row.operator("object.wfc_rename_pack", text="", icon='GREASEPENCIL')
+
+            # Source-mode badge: JSON / Hybrid / Blend-only
+            mode = pack.get('source_mode', 'json_only')
+            mode_icon = {
+                'json_only':  'FILE_TEXT',
+                'hybrid':     'LINKED',
+                'blend_only': 'BLENDER',
+            }.get(mode, 'FILE_TEXT')
+            mode_label = {
+                'json_only':  "JSON only",
+                'hybrid':     "Hybrid (JSON + Blend)",
+                'blend_only': "Blend only",
+            }.get(mode, mode)
             header.label(
-                text=f"{pack['category']}  |  {pack['physical_size']}m  |  ×{pack['resolution_multiplier']}",
-                icon='INFO',
+                text=f"{pack['category']}  |  {pack['physical_size']}m  |  ×{pack['resolution_multiplier']}  |  {mode_label}",
+                icon=mode_icon,
             )
+
             row = header.row(align=True)
             row.operator("object.wfc_load_pack",  text="Load",  icon='FILEBROWSER')
             row.operator("object.wfc_save_pack",  text="Save",  icon='FILE_TICK')
             row.operator("object.wfc_new_pack",   text="New",   icon='ADD')
+
+            # Migration helper: offer "Export as Blend" for JSON-only packs
+            if mode == 'json_only':
+                mig = header.box()
+                mig.label(text="Export geometry to a .blend for portability:", icon='INFO')
+                mig.operator("object.wfc_export_to_blend", text="Export as Blend…", icon='EXPORT')
         else:
             header.label(text="No active pack", icon='INFO')
             row = header.row(align=True)
@@ -1047,6 +1067,41 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
 
 
 # ============================================================================
+# Migration helper — Export JSON-only pack as Blend (Stage 7 UX polish)
+# ============================================================================
+
+class OBJECT_OT_WFCExportToBlend(bpy.types.Operator):
+    """Convert a JSON-only pack to a Hybrid pack by exporting geometry to a .blend file.
+
+    Pre-fills the file browser with a path derived from the current JSON
+    manifest path (same stem, ``.blend`` extension).  On confirmation the
+    full hybrid save workflow runs — geometry goes to ``.blend``, manifest
+    is updated in-place, and the pack state switches to ``'hybrid'``.
+    """
+    bl_idname  = "object.wfc_export_to_blend"
+    bl_label   = "Export as Blend"
+    bl_options = {'REGISTER'}
+
+    filepath:    StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob: StringProperty(default="*.blend", options={'HIDDEN'})  # type: ignore
+
+    def invoke(self, context, event):
+        from .pack_state import get_active_pack
+        pack = get_active_pack()
+        if pack and pack.get('filepath'):
+            # Suggest <same folder>/<pack name stem>.blend
+            stem = os.path.splitext(pack['filepath'])[0]
+            self.filepath = stem + '.blend'
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        # Delegate entirely to the save operator's blend path
+        bpy.ops.object.wfc_save_pack('INVOKE_DEFAULT', filepath=self.filepath)
+        return {'FINISHED'}
+
+
+# ============================================================================
 # Blend-pack I/O helpers (Stage 7 — Task 5)
 # ============================================================================
 
@@ -1340,24 +1395,29 @@ class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
 
 
 class OBJECT_OT_WFCSavePack(bpy.types.Operator):
-    """Save all complete primitives in the active pack to a JSON file"""
+    """Save all complete primitives in the active pack to a JSON or .blend file"""
     bl_idname = "object.wfc_save_pack"
     bl_label = "Save Pack"
     bl_options = {'REGISTER'}
 
     filepath: StringProperty(subtype='FILE_PATH')  # type: ignore
-    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})  # type: ignore
+    filter_glob: StringProperty(default="*.json;*.blend", options={'HIDDEN'})  # type: ignore
 
     def invoke(self, context, event):
         from .pack_state import get_active_pack
         pack = get_active_pack()
-        if pack and pack.get('filepath'):
-            self.filepath = pack['filepath']
+        if pack:
+            # Prefer the blend filepath when we already have one
+            pre = pack.get('blend_filepath') or pack.get('filepath') or ''
+            if pre:
+                self.filepath = pre
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
+    # ── public entry point ────────────────────────────────────────────────────
+
     def execute(self, context):
-        from .pack_state import get_active_pack, update_active_pack_filepath
+        from .pack_state import get_active_pack
         pack = get_active_pack()
         if not pack:
             self.report({'ERROR'}, "No active pack — create or load a pack first")
@@ -1366,7 +1426,18 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             self.report({'ERROR'}, "Persistence system unavailable")
             return {'CANCELLED'}
 
+        ext = os.path.splitext(self.filepath)[1].lower()
+        if ext == '.blend':
+            return self._save_as_blend_file(context, pack)
+        return self._save_as_json_file(context, pack)
+
+    # ── JSON-only save (original path) ───────────────────────────────────────
+
+    def _save_as_json_file(self, context, pack):
+        from .pack_state import update_active_pack_filepath
         from .collectiontools import ensure_primitives_collection
+        from .connector_registry import get_active_registry
+
         col = ensure_primitives_collection(pack['category'])
         adapter = PrimitiveAdapter()
         primitives, skipped = [], []
@@ -1383,7 +1454,6 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             self.report({'ERROR'}, "No complete primitives found — assign type and connectors first")
             return {'CANCELLED'}
 
-        from .connector_registry import get_active_registry
         connector_dicts = [c.to_dict() for c in get_active_registry().connectors.values()]
 
         persistence = PrimitivePersistence()
@@ -1411,6 +1481,148 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
         for err in errors:
             self.report({'ERROR'}, err)
         return {'CANCELLED'}
+
+    # ── Hybrid blend+JSON save ────────────────────────────────────────────────
+
+    def _save_as_blend_file(self, context, pack):
+        """Export geometry to a ``.blend`` file and write a companion JSON manifest.
+
+        Workflow
+        --------
+        1.  Collect every mesh primitive from the category's primitives collection.
+        2.  Derive (or reuse) a stable ``blend_collection`` name via
+            :func:`~primitive_persistence.slugify_collection_name`.
+        3.  Create a temporary export collection, link all primitives into it.
+        4.  Optionally embed the connector registry as a ``wfc_connectors.json``
+            Text data-block in the blend file (Task 11).
+        5.  Write the ``.blend`` file with
+            :func:`bpy.data.libraries.write`, gathering all four data-block
+            types explicitly (PoC finding).
+        6.  Remove the temporary export collection and Text data-block.
+        7.  Write the companion ``.json`` manifest next to the ``.blend`` file,
+            using the same stem (``pack.blend`` → ``pack.json``).
+        8.  Update active pack state to ``'hybrid'``.
+        """
+        import json as _json
+        from .primitive_persistence import slugify_collection_name
+        from .collectiontools import (
+            ensure_primitives_collection,
+            ensure_collection,
+            link_object_to_single_collection,
+        )
+        from .connector_registry import get_active_registry
+        from .pack_state import (
+            update_active_pack_filepath,
+            update_active_pack_blend_filepath,
+        )
+
+        # -- 1. Collect primitives ------------------------------------------------
+        col = ensure_primitives_collection(pack['category'])
+        objects = [o for o in col.objects if o.type == 'MESH']
+        if not objects:
+            self.report({'ERROR'}, "No mesh primitives found in the active pack collection")
+            return {'CANCELLED'}
+
+        # -- 2. Stable collection name -------------------------------------------
+        # Re-use the name from an existing hybrid pack so that reloading after a
+        # rename still finds the collection.
+        existing_blend_path = pack.get('blend_filepath')
+        blend_collection = None
+        if existing_blend_path:
+            # Try to find companion JSON for existing blend_collection
+            from .primitive_persistence import find_companion_json, PrimitivePersistence as PP
+            cj = find_companion_json(existing_blend_path)
+            if cj:
+                _, meta, _ = PP().load_primitive_library(cj)
+                blend_collection = meta.get('blend_collection')
+        if not blend_collection:
+            blend_collection = slugify_collection_name(pack['name'])
+
+        # -- 3. Temporary export collection --------------------------------------
+        # Objects may live in multiple collections in Blender; linking them to a
+        # temporary transport collection does not move them out of WFC_Primitives.
+        export_col = bpy.data.collections.new(blend_collection)
+        bpy.context.scene.collection.children.link(export_col)
+        for obj in objects:
+            export_col.objects.link(obj)
+
+        # -- 4. Connector Text data-block (Task 11) ------------------------------
+        reg = get_active_registry()
+        connector_dicts = [c.to_dict() for c in reg.connectors.values()]
+        text_block = None
+        TEXT_NAME = "wfc_connectors.json"
+        if connector_dicts:
+            text_block = bpy.data.texts.get(TEXT_NAME) or bpy.data.texts.new(TEXT_NAME)
+            text_block.clear()
+            text_block.write(_json.dumps({'connectors': connector_dicts}, indent=2))
+
+        # -- 5. Write blend file -------------------------------------------------
+        datablocks: set = {export_col}
+        for obj in objects:
+            datablocks.add(obj)
+            if obj.data:
+                datablocks.add(obj.data)
+            for slot in obj.material_slots:
+                if slot.material:
+                    datablocks.add(slot.material)
+        if text_block:
+            datablocks.add(text_block)
+
+        try:
+            bpy.data.libraries.write(self.filepath, datablocks, fake_user=False)
+        except Exception as exc:
+            self._teardown_export_collection(export_col, text_block)
+            self.report({'ERROR'}, f"Failed to write blend file: {exc}")
+            return {'CANCELLED'}
+
+        # -- 6. Teardown ---------------------------------------------------------
+        self._teardown_export_collection(export_col, text_block)
+
+        # -- 7. Companion JSON manifest ------------------------------------------
+        blend_filename = os.path.basename(self.filepath)
+        json_path = os.path.splitext(self.filepath)[0] + '.json'
+
+        persistence = PrimitivePersistence()
+        success, json_errors = persistence.save_primitive_library(
+            primitives=[],          # geometry lives in the blend file
+            filepath=json_path,
+            library_name=pack['name'],
+            connectors=connector_dicts,
+            blend_source=blend_filename,
+            blend_collection=blend_collection,
+            metadata={
+                'grid_category': pack['category'],
+                'physical_size': str(pack['physical_size']),
+                'resolution_multiplier': str(pack['resolution_multiplier']),
+                'author': 'WFC Addon',
+                'version': '1.0',
+            },
+        )
+        if not success:
+            for err in json_errors:
+                self.report({'WARNING'}, f"JSON manifest error: {err}")
+
+        # -- 8. Update pack state ------------------------------------------------
+        update_active_pack_filepath(json_path)
+        update_active_pack_blend_filepath(self.filepath)
+
+        self.report(
+            {'INFO'},
+            f"Exported {len(objects)} primitive(s) → '{os.path.basename(self.filepath)}'"
+            + (f" + '{os.path.basename(json_path)}'" if success else ""),
+        )
+        return {'FINISHED'}
+
+    @staticmethod
+    def _teardown_export_collection(export_col, text_block):
+        """Unlink and remove the temporary export collection and Text data-block."""
+        try:
+            bpy.context.scene.collection.children.unlink(export_col)
+        except Exception:
+            pass
+        bpy.data.collections.remove(export_col)
+        if text_block:
+            bpy.data.texts.remove(text_block)
 
 
 class OBJECT_OT_WFCRenamePack(bpy.types.Operator):
@@ -1566,6 +1778,8 @@ PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCLoadPack,
     OBJECT_OT_WFCSavePack,
     OBJECT_OT_WFCRenamePack,
+    # Blend export / migration (Stage 7 — UX polish)
+    OBJECT_OT_WFCExportToBlend,
     # Primitive list actions (Stage 4 — P2-C)
     OBJECT_OT_WFCSelectPrimitive,
     OBJECT_OT_WFCRenamePrimitive,
