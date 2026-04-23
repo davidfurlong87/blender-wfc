@@ -221,19 +221,23 @@ symmetric naming helpers):
 
 ### B3 — Connector type strings
 **Depends on:** B1 audit
+**Extended by:** `PRIMITIVE_PACK_AND_CONNECTOR_ROADMAP.md` P3-A, P3-B, P3-E
 - [ ] Validate connector strings against `connectors.json` at library load time
 - [ ] Explore populating the UI dropdown from `connectors.json` dynamically
       rather than the static `GRID_CATEGORIES` enum
 - [ ] Decide: should unknown connectors warn, error, or be accepted silently?
+- [ ] See P3-A/B for full UI-driven connector creation and pack-scoped registry
 
 ### B4 — Physical sizes and resolutions
 **Depends on:** B1 audit
+**Extended by:** `PRIMITIVE_PACK_AND_CONNECTOR_ROADMAP.md` P1-B, P2-D
 - [ ] Evaluate moving all size/resolution defaults into a config file
       (e.g. `data/categories.json`) alongside `connectors.json`
 - [ ] `categories.json` would define: category name, default physical size,
       default resolution multiplier, display label
 - [ ] `GridCategory` constants and `DEFAULT_GRID_SIZES` become generated from
       this file, not hand-coded
+- [ ] See P1-B for the immediate physical-size / resolution-multiplier consistency fix
 
 ---
 
