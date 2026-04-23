@@ -120,6 +120,7 @@ class OBJECT_PT_WFCPrimitiveBuilderPanel(bpy.types.Panel):
                 grid.enabled = False
 
                 box.operator("object.wfc_assign_connectors", text="Edit Connectors & Metadata", icon='EDITMODE_HLT')
+                box.operator("object.wfc_copy_connectors", text="Copy to Selected", icon='COPYDOWN')
             else:
                 box.label(text="No connectors assigned", icon='INFO')
                 box.operator("object.wfc_assign_connectors", text="Assign Connectors & Metadata", icon='ADD')
@@ -206,15 +207,19 @@ class OBJECT_OT_WFCAssignPrimitiveType(bpy.types.Operator):
                 self.report({'ERROR'}, "Custom type name cannot be empty")
                 return {'CANCELLED'}
 
-            clean_name = self.custom_type_name.strip().upper().replace(' ', '_')
-            new_primitive_def = PrimitiveDefinition(clean_name)
-            new_enum_item = new_primitive_def.as_blender_enum()
+            # Preserve the user's casing for the display label; only the
+            # internal enum identifier is forced to uppercase so it stays
+            # consistent with the built-in types (ROAD_STRAIGHT, ROOM, etc.).
+            display_name = self.custom_type_name.strip().replace(' ', '_')
+            identifier = display_name.upper()
+            new_primitive_def = PrimitiveDefinition(display_name)
+            new_enum_item = new_primitive_def.as_blender_enum()  # (IDENTIFIER, display_name, '')
 
             if new_enum_item not in CUSTOM_PRIMITIVE_TYPES:
                 CUSTOM_PRIMITIVE_TYPES.append(new_enum_item)
 
-            obj.primitive_type = clean_name
-            self.report({'INFO'}, f"Created and assigned custom primitive type: {clean_name}")
+            obj.primitive_type = identifier
+            self.report({'INFO'}, f"Created and assigned custom primitive type: {display_name}")
         else:
             obj.primitive_type = self.prim_type
             self.report({'INFO'}, f"Assigned primitive type: {self.prim_type}")
@@ -310,13 +315,17 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         box.label(text="Grid Metadata:", icon='SNAP_GRID')
         box.prop(self, "grid_category")
         row = box.row(align=True)
-        row.prop(self, "physical_size")
+        # Physical size is auto-derived when resolution_multiplier > 1.
+        # Show it read-only so the user can see the computed value without
+        # being able to set an inconsistent value by hand.
+        size_col = row.column(align=True)
+        size_col.prop(self, "physical_size")
+        size_col.enabled = (self.resolution_multiplier == 1)
         row.prop(self, "resolution_multiplier")
-        # Auto-calculate helper: show what physical_size implies relative to 8m outer grid
         if self.resolution_multiplier > 1:
             implied = 8.0 / self.resolution_multiplier
             box.label(
-                text=f"8m outer cell ÷ {self.resolution_multiplier} = {implied:.2f}m per cell",
+                text=f"Physical size auto-set to {implied:.4g}m  (8m ÷ {self.resolution_multiplier})",
                 icon='INFO'
             )
 
@@ -356,14 +365,65 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         obj.y_pos_connector = self.pos_y
         obj.y_neg_connector = self.neg_y
 
-        # NEW: Assign sizing and symmetry metadata (Task 3A.1 Step 3)
-        obj.physical_size = self.physical_size
+        # Assign sizing and symmetry metadata.
+        # When resolution_multiplier > 1 the physical size is derived from the
+        # outer cell size (8m) so the two values are always consistent.
         obj.grid_category = self.grid_category
         obj.resolution_multiplier = self.resolution_multiplier
         obj.rotation_invariant = self.rotation_invariant
+        if self.resolution_multiplier > 1:
+            obj.physical_size = 8.0 / self.resolution_multiplier
+        else:
+            obj.physical_size = self.physical_size
 
         self.report({'INFO'}, f"Assigned connectors and metadata to {obj.name}")
         context.view_layer.update()
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCCopyConnectors(bpy.types.Operator):
+    """Copy primitive type, connectors, and metadata from the active object
+    to every other selected mesh object. Useful for quickly setting up
+    multiple primitives with the same connector pattern."""
+    bl_idname = "object.wfc_copy_connectors"
+    bl_label = "Copy Type & Connectors from Active"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        source = context.active_object
+
+        if not source:
+            self.report({'ERROR'}, "No active object")
+            return {'CANCELLED'}
+
+        if source.type != 'MESH':
+            self.report({'ERROR'}, "Active object is not a mesh")
+            return {'CANCELLED'}
+
+        if not getattr(source, 'primitive_type', None) or source.primitive_type == 'NONE':
+            self.report({'ERROR'}, "Active object has no primitive type assigned — assign one first")
+            return {'CANCELLED'}
+
+        targets = [
+            obj for obj in context.selected_objects
+            if obj != source and obj.type == 'MESH'
+        ]
+        if not targets:
+            self.report({'WARNING'}, "No other mesh objects selected — select the targets then Shift-click the active")
+            return {'CANCELLED'}
+
+        for obj in targets:
+            obj.primitive_type         = source.primitive_type
+            obj.x_pos_connector        = source.x_pos_connector
+            obj.x_neg_connector        = source.x_neg_connector
+            obj.y_pos_connector        = source.y_pos_connector
+            obj.y_neg_connector        = source.y_neg_connector
+            obj.physical_size          = source.physical_size
+            obj.grid_category          = source.grid_category
+            obj.resolution_multiplier  = source.resolution_multiplier
+            obj.rotation_invariant     = source.rotation_invariant
+
+        self.report({'INFO'}, f"Copied type & connectors to {len(targets)} object(s)")
         return {'FINISHED'}
 
 
@@ -598,6 +658,7 @@ class OBJECT_OT_WFCConvertToPrimitive(bpy.types.Operator):
 PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCAssignPrimitiveType,
     OBJECT_OT_WFCAssignConnectors,
+    OBJECT_OT_WFCCopyConnectors,
     OBJECT_OT_WFCSavePrimitive,
     OBJECT_OT_WFCLoadPrimitive,
     OBJECT_OT_WFCConvertToPrimitive,  # Deprecated but kept for compatibility

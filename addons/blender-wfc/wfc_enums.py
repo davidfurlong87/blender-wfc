@@ -52,10 +52,13 @@ def get_connector_enum_items(self=None, context=None):
     """
     try:
         from .connector_registry import connector_registry
-        items = [
-            (c.name, c.name.replace('_', ' ').title(), c.description)
-            for c in connector_registry.connectors.values()
-        ]
+        items = sorted(
+            [
+                (c.name, c.name.replace('_', ' ').title(), c.description)
+                for c in connector_registry.connectors.values()
+            ],
+            key=lambda item: item[1]  # sort by display name, case-insensitive order
+        )
         if items:
             return items
     except (ImportError, SystemError):
