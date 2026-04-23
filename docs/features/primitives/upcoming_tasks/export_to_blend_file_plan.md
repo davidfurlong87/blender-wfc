@@ -1,4 +1,4 @@
-## Export to Blend File — Stage 7 Plan
+## Export to Blend File — Stage 7 Plan ✅ COMPLETE
 
 This document turns the early Stage 7 discussion into a concrete plan.
 
@@ -327,9 +327,9 @@ This gives immediate value and is lower risk than the write path.
 
 ## Implementation task breakdown
 
-These are the concrete implementation tasks that follow from the design above.
+All tasks below are complete. See the material pack section at the bottom for remaining stretch work.
 
-### Task 1 — PoC: verify Blender write/read round-trip
+### Task 1 — PoC: verify Blender write/read round-trip ✅
 
 **Goal:** remove the main technical risk before touching production save code.
 
@@ -345,7 +345,7 @@ These are the concrete implementation tasks that follow from the design above.
 
 **Output:** PoC script + written findings added to this document or a linked note.
 
-### Task 2 — Add hybrid-pack manifest fields to persistence layer
+### Task 2 — Add hybrid-pack manifest fields to persistence layer ✅
 
 **Goal:** allow JSON manifests to describe companion blend files.
 
@@ -362,7 +362,7 @@ These are the concrete implementation tasks that follow from the design above.
 - `addons/blender-wfc/primitive_persistence.py`
 - `addons/blender-wfc/data/*.json` (sample fixtures if needed)
 
-### Task 3 — Extend active pack state for hybrid sources
+### Task 3 — Extend active pack state for hybrid sources ✅
 
 **Goal:** let the current in-memory pack record both its JSON manifest and its
 blend file.
@@ -375,7 +375,7 @@ blend file.
 
 **Primary file:** `addons/blender-wfc/pack_state.py`
 
-### Task 4 — Implement path/discovery helpers
+### Task 4 — Implement path/discovery helpers ✅
 
 **Goal:** centralise all file-discovery rules in one place instead of scattering
 them across UI operators.
@@ -388,7 +388,7 @@ them across UI operators.
 
 **Likely home:** `primitive_persistence.py` or a new small pack I/O helper module.
 
-### Task 5 — Implement read-only blend-pack loader
+### Task 5 — Implement read-only blend-pack loader ✅
 
 **Goal:** load geometry from `.blend` without yet supporting save.
 
@@ -404,7 +404,7 @@ them across UI operators.
 - `addons/blender-wfc/primitive_adapter.py`
 - `addons/blender-wfc/collectiontools/*`
 
-### Task 6 — Implement connector-registry fallback chain
+### Task 6 — Implement connector-registry fallback chain ✅
 
 **Goal:** make `.blend` loading resilient even without a perfect sidecar JSON.
 
@@ -419,7 +419,7 @@ them across UI operators.
 - `addons/blender-wfc/connector_registry.py`
 - `addons/blender-wfc/primitive_ui.py`
 
-### Task 7 — Unify the Pack UI load path
+### Task 7 — Unify the Pack UI load path ✅
 
 **Goal:** the user should be able to choose either `.json` or `.blend` and get
 the same active-pack result.
@@ -434,7 +434,7 @@ the same active-pack result.
 
 **Primary file:** `addons/blender-wfc/primitive_ui.py`
 
-### Task 8 — Add automated tests for hybrid load behavior
+### Task 8 — Add automated tests for hybrid load behavior ✅
 
 **Goal:** prevent regressions before adding the save path.
 
@@ -447,7 +447,7 @@ the same active-pack result.
 
 **Likely location:** `tests/` alongside the existing verification scripts.
 
-### Task 9 — Implement export dependency collection
+### Task 9 — Implement export dependency collection ✅
 
 **Goal:** prepare the exact datablock set needed for `.blend` export.
 
@@ -461,7 +461,7 @@ the same active-pack result.
 - `addons/blender-wfc/primitive_ui.py`
 - `addons/blender-wfc/primitive_adapter.py`
 
-### Task 10 — Implement hybrid save/export path
+### Task 10 — Implement hybrid save/export path ✅
 
 **Goal:** save `pack.blend` + `pack.json` together.
 
@@ -478,7 +478,7 @@ the same active-pack result.
 - `addons/blender-wfc/primitive_ui.py`
 - `addons/blender-wfc/primitive_persistence.py`
 
-### Task 11 — Embed connector-registry fallback into the exported blend
+### Task 11 — Embed connector-registry fallback into the exported blend ✅
 
 **Goal:** make standalone blend files more self-contained.
 
@@ -486,7 +486,7 @@ the same active-pack result.
 - define how it is updated on repeated saves
 - teach the loader to read it when sidecar JSON connectors are unavailable
 
-### Task 12 — UX polish and migration helpers
+### Task 12 — UX polish and migration helpers ✅
 
 **Goal:** make the hybrid system understandable and easy to adopt.
 
@@ -494,7 +494,43 @@ the same active-pack result.
 - optionally add explicit “Export Pack to Blend” conversion UI
 - optionally add folder-based pack loading later if file-based loading proves solid
 
-### Task 13 — Final validation pass
+### Task 13 — Final validation pass ✅
+
+---
+
+## Material pack — remaining stretch work
+
+### MP-A1 — `_gather_images_from_materials()` helper
+
+Walk each material's node tree and return all `Image` datablocks referenced by
+`ShaderNodeTexImage` nodes.  Returns an empty list when there is no node tree or
+no image nodes.
+
+### MP-A2 — Image packing during hybrid blend export
+
+In `_save_as_blend_file`: call the helper, temporarily pack any external images
+(`image.pack()`), add them to the datablocks set before writing, then restore
+each image to its original state after the write.
+
+### MP-A3 — Bundled image count in the info message
+
+Append `", N image(s) bundled"` to the operator's `{'INFO'}` report so the user
+can see that textures were embedded.
+
+### MP-B1 — `OBJECT_OT_WFCExportMaterials` operator
+
+File-browser operator (`.blend` extension) that gathers all unique materials from
+the active pack's primitives, packs external images, and writes a standalone
+`materials.blend` containing only materials + images (no geometry).
+
+### MP-B2 — "Export Materials…" button in the Pack panel
+
+Show the button in `OBJECT_PT_WFCPackPanel.draw()` whenever a pack is active.
+
+### MP-B3 — Tests
+
+Structural checks that the image-gathering helper handles no-material, no-node-
+tree, and no-image-node objects without raising.
 
 **Goal:** confirm Stage 7 works end-to-end before considering follow-on work.
 

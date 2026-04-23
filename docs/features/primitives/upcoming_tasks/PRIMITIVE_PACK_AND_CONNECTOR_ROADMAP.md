@@ -258,6 +258,49 @@ In rough order of value:
 
 ---
 
+### Material pack — detailed task breakdown (stretch goal 23)
+
+**Goal:** make hybrid pack `.blend` files fully portable, even when primitives use
+image-texture-based materials, and allow exporting a standalone shared material
+library that multiple packs can reference.
+
+There are two sub-problems:
+
+#### MP-A — Image packing in hybrid blend export
+
+When `_save_as_blend_file` writes a `.blend`, it already gathers materials into
+the datablocks set.  However, if a material references an external image texture,
+that image is written only as a path reference — the `.blend` is not self-contained
+and will show broken textures on another machine.
+
+Tasks:
+
+- **MP-A1** — Add `_gather_images_from_materials(material_list)` helper that
+  walks each material's node tree and returns all `Image` datablocks referenced
+  by `ShaderNodeTexImage` nodes.
+- **MP-A2** — In `_save_as_blend_file`, call the helper, temporarily pack any
+  external images (`image.pack()`), add them to the datablocks set, write the
+  blend, then restore unmodified images to their original state (`image.unpack()`).
+- **MP-A3** — Add `image_count` to the operator's info message so the user knows
+  textures were bundled.
+
+#### MP-B — Standalone material library export
+
+An optional `materials.blend` that contains only materials + their images, with
+no geometry.  Multiple packs can share one material library, avoiding duplication.
+
+Tasks:
+
+- **MP-B1** — Add `OBJECT_OT_WFCExportMaterials` operator (file browser, `.blend`
+  extension).  Gathers all unique materials from the active pack's primitives,
+  packs external images, writes a `materials.blend`.
+- **MP-B2** — Add an **Export Materials…** button in the Pack panel (shown when
+  a pack is active).
+- **MP-B3** — Tests: structural verification that the image-gathering helper
+  handles no-material, no-node-tree, and no-image-node edge cases cleanly.
+
+---
+
 ### Dependency diagram (simplified)
 
 ```

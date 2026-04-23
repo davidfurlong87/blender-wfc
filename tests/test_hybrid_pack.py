@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import tempfile
+from types import SimpleNamespace
 
 # ── path setup ────────────────────────────────────────────────────────────────
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -343,6 +344,150 @@ def test_companion_json_discovery():
 
 # ── runner ────────────────────────────────────────────────────────────────────
 
+def _mock_image(name, packed=False):
+    """Minimal stand-in for bpy.types.Image."""
+    img = SimpleNamespace()
+    img.name = name
+    img.packed_file = object() if packed else None
+    return img
+
+
+def _mock_tex_image_node(image):
+    """Stand-in for ShaderNodeTexImage."""
+    node = SimpleNamespace()
+    node.type = 'TEX_IMAGE'
+    node.image = image
+    return node
+
+
+def _mock_rgb_node():
+    """Stand-in for a non-image node."""
+    node = SimpleNamespace()
+    node.type = 'RGB'
+    return node
+
+
+def _mock_node_tree(*nodes):
+    tree = SimpleNamespace()
+    tree.nodes = list(nodes)
+    return tree
+
+
+def _mock_material(name, node_tree=None, use_nodes=True):
+    mat = SimpleNamespace()
+    mat.name = name
+    mat.use_nodes = use_nodes
+    mat.node_tree = node_tree
+    return mat
+
+
+# We import the helper directly from the addon module (no Blender needed since
+# it only introspects duck-typed objects).
+_ADDON_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'addons', 'blender-wfc',
+)
+sys.path.insert(0, _ADDON_ROOT)
+# Stub out bpy so primitive_ui can be imported without Blender
+import types as _types
+_bpy_stub = _types.ModuleType('bpy')
+_bpy_stub.types = _types.ModuleType('bpy.types')
+_bpy_stub.props = _types.ModuleType('bpy.props')
+sys.modules.setdefault('bpy', _bpy_stub)
+# Import only the helper function — not the whole module (which would fail on
+# full registration without a running Blender).
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location(
+    'primitive_ui_partial',
+    os.path.join(_ADDON_ROOT, 'primitive_ui.py'),
+)
+# We can't execute the module (bpy.types not fully stubbed), so we parse it
+# manually by extracting the function via exec on just its source.
+def _load_gather_images_helper():
+    """Extract _gather_images_from_materials from primitive_ui.py without
+    executing the full module (which requires bpy)."""
+    src_path = os.path.join(_ADDON_ROOT, 'primitive_ui.py')
+    with open(src_path) as f:
+        src = f.read()
+    # Find the function definition and extract it
+    start = src.index('def _gather_images_from_materials(')
+    # Find the next top-level def/class after it
+    rest = src[start:]
+    lines = rest.splitlines()
+    end_line = len(lines)
+    for i, line in enumerate(lines[1:], 1):
+        if line and not line[0].isspace() and (
+            line.startswith('def ') or line.startswith('class ')
+            or line.startswith('#')
+        ):
+            end_line = i
+            break
+    fn_src = '\n'.join(lines[:end_line])
+    ns = {}
+    exec(fn_src, ns)
+    return ns['_gather_images_from_materials']
+
+
+_gather_images_from_materials = _load_gather_images_helper()
+
+
+def test_gather_images():
+    print("\n_gather_images_from_materials:")
+    img_a = _mock_image('brick.png')
+    img_b = _mock_image('concrete.png')
+
+    # Case 1: None in material list
+    result = _gather_images_from_materials([None])
+    check("None material → empty list",      result == [])
+
+    # Case 2: material with use_nodes=False
+    mat_no_nodes = _mock_material('mat_no_nodes', use_nodes=False)
+    result = _gather_images_from_materials([mat_no_nodes])
+    check("use_nodes=False → empty list",    result == [])
+
+    # Case 3: material with node_tree=None
+    mat_no_tree = _mock_material('mat_no_tree', node_tree=None)
+    result = _gather_images_from_materials([mat_no_tree])
+    check("node_tree=None → empty list",     result == [])
+
+    # Case 4: node tree with no image nodes
+    tree_no_img = _mock_node_tree(_mock_rgb_node())
+    mat_no_img  = _mock_material('mat_no_img', node_tree=tree_no_img)
+    result = _gather_images_from_materials([mat_no_img])
+    check("no TEX_IMAGE nodes → empty list", result == [])
+
+    # Case 5: image node with image=None
+    tree_null_img = _mock_node_tree(_mock_tex_image_node(None))
+    mat_null_img  = _mock_material('mat_null', node_tree=tree_null_img)
+    result = _gather_images_from_materials([mat_null_img])
+    check("image=None on node → empty list", result == [])
+
+    # Case 6: one material, one image
+    tree_one = _mock_node_tree(_mock_tex_image_node(img_a))
+    mat_one  = _mock_material('mat_one', node_tree=tree_one)
+    result   = _gather_images_from_materials([mat_one])
+    check("one image returned",              len(result) == 1)
+    check("correct image name",             result[0].name == 'brick.png')
+
+    # Case 7: two materials sharing the same image → deduplicated
+    tree_b = _mock_node_tree(_mock_tex_image_node(img_a))
+    mat_b  = _mock_material('mat_b', node_tree=tree_b)
+    result = _gather_images_from_materials([mat_one, mat_b])
+    check("shared image deduplicated",       len(result) == 1)
+
+    # Case 8: two materials with different images
+    tree_c = _mock_node_tree(_mock_tex_image_node(img_b))
+    mat_c  = _mock_material('mat_c', node_tree=tree_c)
+    result = _gather_images_from_materials([mat_one, mat_c])
+    check("two distinct images returned",    len(result) == 2)
+    names  = {r.name for r in result}
+    check("both image names present",        names == {'brick.png', 'concrete.png'})
+
+    # Case 9: empty list of materials
+    result = _gather_images_from_materials([])
+    check("empty input → empty list",        result == [])
+
+
 def run_all():
     test_slugify()
     test_resolve_blend_path()
@@ -353,6 +498,7 @@ def run_all():
     test_blend_collection_stability()
     test_missing_companion_json()
     test_companion_json_discovery()
+    test_gather_images()
 
     print(f"\n{'=' * 57}")
     total = _passed + _failed

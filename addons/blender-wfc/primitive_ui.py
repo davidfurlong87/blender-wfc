@@ -115,6 +115,13 @@ class OBJECT_PT_WFCPackPanel(bpy.types.Panel):
             row.operator("object.wfc_merge_pack", text="Merge…", icon='COLLECTION_NEW')
             row.operator("object.wfc_new_pack",   text="New",    icon='ADD')
 
+            # Material library export (MP-B2)
+            header.operator(
+                "object.wfc_export_materials",
+                text="Export Materials…",
+                icon='MATERIAL',
+            )
+
             # Migration helper: offer "Export as Blend" for JSON-only packs
             if mode == 'json_only':
                 mig = header.box()
@@ -1068,6 +1075,49 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
 
 
 # ============================================================================
+# Material-pack helpers (MP-A1)
+# ============================================================================
+
+def _gather_images_from_materials(materials):
+    """Return a list of all unique ``bpy.types.Image`` datablocks referenced by
+    ``ShaderNodeTexImage`` nodes in the given materials.
+
+    Handles gracefully:
+    - ``None`` entries in *materials*
+    - materials that have no node tree (``use_nodes`` is False or node_tree is
+      ``None``)
+    - node trees that contain no ``ShaderNodeTexImage`` nodes
+    - image slots on those nodes that are ``None``
+
+    Args:
+        materials: Iterable of ``bpy.types.Material`` (or ``None``) objects.
+
+    Returns:
+        Deduplicated list of ``bpy.types.Image`` objects (may be empty).
+    """
+    seen  = set()
+    found = []
+    for mat in materials:
+        if mat is None:
+            continue
+        if not getattr(mat, 'use_nodes', False):
+            continue
+        tree = getattr(mat, 'node_tree', None)
+        if tree is None:
+            continue
+        for node in tree.nodes:
+            if node.type != 'TEX_IMAGE':
+                continue
+            img = getattr(node, 'image', None)
+            if img is None:
+                continue
+            if img.name not in seen:
+                seen.add(img.name)
+                found.append(img)
+    return found
+
+
+# ============================================================================
 # Migration helper — Export JSON-only pack as Blend (Stage 7 UX polish)
 # ============================================================================
 
@@ -1557,7 +1607,21 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             text_block.clear()
             text_block.write(_json.dumps({'connectors': connector_dicts}, indent=2))
 
-        # -- 5. Write blend file -------------------------------------------------
+        # -- 5. Write blend file (MP-A2: pack external images for portability) ---
+        all_mats  = [slot.material for obj in objects for slot in obj.material_slots]
+        images    = _gather_images_from_materials(all_mats)
+
+        # Temporarily pack any external images so they travel with the .blend.
+        # We record which ones we packed so we can restore their state afterward.
+        newly_packed = []
+        for img in images:
+            if not img.packed_file:   # only pack if not already embedded
+                try:
+                    img.pack()
+                    newly_packed.append(img)
+                except Exception:
+                    pass              # skip unreadable / generated images
+
         datablocks: set = {export_col}
         for obj in objects:
             datablocks.add(obj)
@@ -1566,17 +1630,21 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             for slot in obj.material_slots:
                 if slot.material:
                     datablocks.add(slot.material)
+        for img in images:
+            datablocks.add(img)
         if text_block:
             datablocks.add(text_block)
 
         try:
             bpy.data.libraries.write(self.filepath, datablocks, fake_user=False)
         except Exception as exc:
+            self._restore_images(newly_packed)
             self._teardown_export_collection(export_col, text_block)
             self.report({'ERROR'}, f"Failed to write blend file: {exc}")
             return {'CANCELLED'}
 
         # -- 6. Teardown ---------------------------------------------------------
+        self._restore_images(newly_packed)
         self._teardown_export_collection(export_col, text_block)
 
         # -- 7. Companion JSON manifest ------------------------------------------
@@ -1607,12 +1675,24 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
         update_active_pack_filepath(json_path)
         update_active_pack_blend_filepath(self.filepath)
 
+        # MP-A3: include image count in the report
+        img_msg = f", {len(images)} image(s) bundled" if images else ""
         self.report(
             {'INFO'},
-            f"Exported {len(objects)} primitive(s) → '{os.path.basename(self.filepath)}'"
+            f"Exported {len(objects)} primitive(s){img_msg}"
+            f" → '{os.path.basename(self.filepath)}'"
             + (f" + '{os.path.basename(json_path)}'" if success else ""),
         )
         return {'FINISHED'}
+
+    @staticmethod
+    def _restore_images(newly_packed):
+        """Unpack images that we temporarily packed for export."""
+        for img in newly_packed:
+            try:
+                img.unpack(method='USE_LOCAL')
+            except Exception:
+                pass  # if the file no longer exists, leave it packed
 
     @staticmethod
     def _teardown_export_collection(export_col, text_block):
@@ -1624,6 +1704,97 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
         bpy.data.collections.remove(export_col)
         if text_block:
             bpy.data.texts.remove(text_block)
+
+
+class OBJECT_OT_WFCExportMaterials(bpy.types.Operator):
+    """Export a standalone material library from the active pack.
+
+    Gathers every unique material used by the active pack's primitives and
+    writes them — along with any referenced image textures — to a
+    ``materials.blend`` file.  The resulting file contains only materials and
+    images (no geometry), making it a lightweight shared library that other
+    packs can link against.
+
+    External images are temporarily packed into Blender's memory before
+    writing so the ``.blend`` is fully self-contained, then restored to their
+    original state.
+    """
+    bl_idname  = "object.wfc_export_materials"
+    bl_label   = "Export Materials"
+    bl_options = {'REGISTER'}
+
+    filepath:    StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob: StringProperty(default="*.blend", options={'HIDDEN'})  # type: ignore
+
+    def invoke(self, context, event):
+        from .pack_state import get_active_pack
+        pack = get_active_pack()
+        if pack:
+            # Suggest <pack folder>/materials.blend
+            base = pack.get('blend_filepath') or pack.get('filepath') or ''
+            folder = os.path.dirname(base) if base else ''
+            self.filepath = os.path.join(folder, 'materials.blend')
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        from .pack_state import get_active_pack
+        from .collectiontools import ensure_primitives_collection
+
+        pack = get_active_pack()
+        if not pack:
+            self.report({'ERROR'}, "No active pack — load or create a pack first")
+            return {'CANCELLED'}
+
+        col = ensure_primitives_collection(pack['category'])
+        objects = [o for o in col.objects if o.type == 'MESH']
+        if not objects:
+            self.report({'ERROR'}, "No mesh primitives found in the active pack")
+            return {'CANCELLED'}
+
+        # Gather unique materials
+        all_mats = []
+        seen_names = set()
+        for obj in objects:
+            for slot in obj.material_slots:
+                if slot.material and slot.material.name not in seen_names:
+                    seen_names.add(slot.material.name)
+                    all_mats.append(slot.material)
+
+        if not all_mats:
+            self.report({'WARNING'}, "No materials found on pack primitives")
+            return {'CANCELLED'}
+
+        images = _gather_images_from_materials(all_mats)
+
+        # Temporarily pack external images
+        newly_packed = []
+        for img in images:
+            if not img.packed_file:
+                try:
+                    img.pack()
+                    newly_packed.append(img)
+                except Exception:
+                    pass
+
+        datablocks = set(all_mats) | set(images)
+
+        try:
+            bpy.data.libraries.write(self.filepath, datablocks, fake_user=False)
+        except Exception as exc:
+            OBJECT_OT_WFCSavePack._restore_images(newly_packed)
+            self.report({'ERROR'}, f"Failed to write materials file: {exc}")
+            return {'CANCELLED'}
+
+        OBJECT_OT_WFCSavePack._restore_images(newly_packed)
+
+        img_msg = f", {len(images)} image(s) bundled" if images else ""
+        self.report(
+            {'INFO'},
+            f"Exported {len(all_mats)} material(s){img_msg}"
+            f" → '{os.path.basename(self.filepath)}'",
+        )
+        return {'FINISHED'}
 
 
 class OBJECT_OT_WFCMergePack(bpy.types.Operator):
@@ -1941,6 +2112,8 @@ PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCMergePack,
     # Blend export / migration (Stage 7 — UX polish)
     OBJECT_OT_WFCExportToBlend,
+    # Material pack (MP-B1)
+    OBJECT_OT_WFCExportMaterials,
     # Primitive list actions (Stage 4 — P2-C)
     OBJECT_OT_WFCSelectPrimitive,
     OBJECT_OT_WFCRenamePrimitive,
