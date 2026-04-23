@@ -16,6 +16,7 @@ See docs/features/PRIMITIVE_UI_REFACTORING_ANALYSIS.md for details.
 """
 
 import bpy
+import os
 from bpy.props import EnumProperty, StringProperty, FloatProperty, IntProperty, BoolProperty
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES, PrimitiveDefinition
 from .wfc_values import bl_category_name, GridCategory, DEFAULT_GRID_SIZES
@@ -1045,83 +1046,297 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
         return {'FINISHED'}
 
 
+# ============================================================================
+# Blend-pack I/O helpers (Stage 7 — Task 5)
+# ============================================================================
+
+def _discover_blend_collection(blend_path: str):
+    """Inspect *blend_path* and return the most likely WFC primitives collection.
+
+    Checks for collections whose name ends with ``_Primitives`` (the WFC
+    naming convention).  If exactly one such collection is found it is
+    returned automatically; if there are multiple the caller must resolve
+    the ambiguity via a companion JSON manifest.
+
+    Returns the collection name string, or ``None`` when no suitable
+    collection is found or the file cannot be read.
+    """
+    try:
+        with bpy.data.libraries.load(blend_path, link=False) as (src, _):
+            collections = list(src.collections)
+        wfc_cols = [c for c in collections if c.endswith('_Primitives')]
+        if len(wfc_cols) == 1:
+            return wfc_cols[0]
+        if not wfc_cols and len(collections) == 1:
+            return collections[0]
+    except Exception:
+        pass
+    return None
+
+
+def _load_primitives_from_blend(operator, blend_path: str,
+                                 blend_collection: str, category: str):
+    """Append primitive objects from *blend_path* into ``WFC_Primitives_{category}``.
+
+    Purges any existing objects in the destination collection first to
+    prevent Blender's ``.001`` rename behaviour (PoC finding: orphaned
+    data-blocks cause name conflicts on re-import).
+
+    Uses ``operator.report()`` for user-visible error messages.
+
+    Args:
+        operator:         The calling Blender operator (for ``report()``).
+        blend_path:       Absolute path to the ``.blend`` file.
+        blend_collection: Name of the collection to append (from
+                          ``blend_collection`` in the pack manifest, or
+                          discovered via :func:`_discover_blend_collection`).
+        category:         Grid category string used to resolve the
+                          destination WFC collection.
+
+    Returns:
+        List of loaded :class:`bpy.types.Object` instances on success,
+        or ``None`` on failure.
+    """
+    from .collectiontools import (
+        ensure_primitives_collection,
+        delete_objects_and_meshes,
+        link_object_to_single_collection,
+    )
+
+    dest_col = ensure_primitives_collection(category)
+
+    # Purge existing objects to avoid .001 name collisions on load
+    existing = list(dest_col.objects)
+    if existing:
+        delete_objects_and_meshes(existing)
+
+    with bpy.data.libraries.load(blend_path, link=False) as (src, dst):
+        if blend_collection not in src.collections:
+            operator.report(
+                {'ERROR'},
+                f"Collection '{blend_collection}' not found in '{blend_path}'",
+            )
+            return None
+        # PoC confirmed: all four types must be requested explicitly.
+        # Requesting only collections returns an empty collection shell.
+        dst.collections = [blend_collection]
+        dst.objects     = list(src.objects)
+        dst.meshes      = list(src.meshes)
+        dst.materials   = list(src.materials)
+
+    imported_col = bpy.data.collections.get(blend_collection)
+    if not imported_col:
+        operator.report(
+            {'ERROR'},
+            f"Collection '{blend_collection}' failed to load from '{blend_path}'",
+        )
+        return None
+
+    loaded = []
+    for obj in list(imported_col.objects):
+        link_object_to_single_collection(obj, dest_col)
+        loaded.append(obj)
+
+    # Remove the now-empty transport collection
+    bpy.data.collections.remove(imported_col)
+
+    if not loaded:
+        operator.report(
+            {'ERROR'},
+            f"Collection '{blend_collection}' contained no objects",
+        )
+        return None
+
+    return loaded
+
+
+# ============================================================================
+
 class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
-    """Load a primitive pack from a JSON file and set it as the active pack"""
+    """Load a primitive pack from a JSON or .blend file and set it as the active pack"""
     bl_idname = "object.wfc_load_pack"
     bl_label = "Load Pack"
     bl_options = {'REGISTER', 'UNDO'}
 
     filepath: StringProperty(subtype='FILE_PATH')  # type: ignore
-    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})  # type: ignore
+    filter_glob: StringProperty(default="*.json;*.blend", options={'HIDDEN'})  # type: ignore
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+    # ── public entry point ────────────────────────────────────────────────────
 
     def execute(self, context):
         if not PERSISTENCE_AVAILABLE:
             self.report({'ERROR'}, "Persistence system unavailable")
             return {'CANCELLED'}
 
-        persistence = PrimitivePersistence()
-        primitives_list, lib_meta, load_errors = persistence.load_primitive_library(self.filepath)
+        ext = os.path.splitext(self.filepath)[1].lower()
+        result = (
+            self._load_from_blend_file(context)
+            if ext == '.blend'
+            else self._load_from_json_file(context)
+        )
+        if result is None:
+            return {'CANCELLED'}
 
+        created, lib_meta, source_mode, json_path, blend_path = result
+
+        # Activate pack state
+        from .pack_state import set_active_pack
+        set_active_pack(
+            name=lib_meta.get('library_name', 'Loaded Pack'),
+            category=lib_meta.get('grid_category', GridCategory.OUTER_GRID),
+            filepath=json_path,
+            physical_size=float(lib_meta.get('physical_size',
+                                             DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])),
+            resolution_multiplier=int(lib_meta.get('resolution_multiplier', 1)),
+            blend_filepath=blend_path,
+            source_mode=source_mode,
+        )
+
+        connector_msg = self._activate_connectors(lib_meta)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in created:
+            obj.select_set(True)
+        if created:
+            context.view_layer.objects.active = created[-1]
+
+        self.report(
+            {'INFO'},
+            f"Loaded {len(created)} primitives from "
+            f"'{lib_meta.get('library_name', 'pack')}'{connector_msg}",
+        )
+        return {'FINISHED'}
+
+    # ── private path handlers ─────────────────────────────────────────────────
+
+    def _load_from_json_file(self, context):
+        """Handle a ``.json`` file selection.
+
+        Returns ``(created, lib_meta, source_mode, json_path, blend_path)``
+        or ``None`` on failure.
+        """
+        persistence = PrimitivePersistence()
+        primitives_list, lib_meta, load_errors = persistence.load_primitive_library(
+            self.filepath
+        )
         for err in load_errors:
             self.report({'WARNING'}, err)
 
+        # Hybrid pack: manifest points to a companion .blend for geometry
+        blend_source = lib_meta.get('blend_source')
+        if blend_source:
+            from .primitive_persistence import resolve_blend_path
+            blend_path = resolve_blend_path(self.filepath, blend_source)
+            blend_collection = lib_meta.get('blend_collection') or \
+                               _discover_blend_collection(blend_path)
+            if not blend_collection:
+                self.report(
+                    {'ERROR'},
+                    f"blend_source is set but blend_collection is unknown. "
+                    f"Add 'blend_collection' to {self.filepath}",
+                )
+                return None
+            category = lib_meta.get('grid_category', GridCategory.OUTER_GRID)
+            created = _load_primitives_from_blend(self, blend_path, blend_collection, category)
+            if created is None:
+                return None
+            return created, lib_meta, 'hybrid', self.filepath, blend_path
+
+        # JSON-only pack: build objects from vertex data in the JSON
         if not primitives_list:
             self.report({'ERROR'}, "No primitives found in file")
-            return {'CANCELLED'}
+            return None
 
         adapter = PrimitiveAdapter()
         created = []
         for prim_data in primitives_list:
-            obj, errors = adapter.create_blender_object_from_primitive(prim_data)
+            obj, _errors = adapter.create_blender_object_from_primitive(prim_data)
             if obj:
                 from .collectiontools import ensure_primitives_collection
-                col = ensure_primitives_collection(prim_data.grid_category or GridCategory.OUTER_GRID)
+                col = ensure_primitives_collection(
+                    prim_data.grid_category or GridCategory.OUTER_GRID
+                )
                 from .collectiontools.collection_creation import link_object_to_single_collection
                 link_object_to_single_collection(obj, col)
                 created.append(obj)
 
         if not created:
             self.report({'ERROR'}, "Failed to create any objects from pack")
-            return {'CANCELLED'}
+            return None
 
-        # Activate the pack
-        from .pack_state import set_active_pack
-        size = float(lib_meta.get('physical_size', 8.0))
-        res  = int(lib_meta.get('resolution_multiplier', 1))
-        set_active_pack(
-            name=lib_meta.get('library_name', 'Loaded Pack'),
-            category=lib_meta.get('grid_category', GridCategory.OUTER_GRID),
-            filepath=self.filepath,
-            physical_size=size,
-            resolution_multiplier=res,
+        return created, lib_meta, 'json_only', self.filepath, None
+
+    def _load_from_blend_file(self, context):
+        """Handle a ``.blend`` file selection.
+
+        Looks for a companion JSON manifest in the same directory to get
+        metadata and connector registry.  Proceeds in geometry-only mode
+        if no manifest is found.
+
+        Returns ``(created, lib_meta, source_mode, json_path, blend_path)``
+        or ``None`` on failure.
+        """
+        from .primitive_persistence import find_companion_json
+
+        companion_json = find_companion_json(self.filepath)
+        lib_meta  = {}
+        json_path = None
+
+        if companion_json:
+            persistence = PrimitivePersistence()
+            _, lib_meta, json_errors = persistence.load_primitive_library(companion_json)
+            for err in json_errors:
+                self.report({'WARNING'}, err)
+            json_path = companion_json
+
+        blend_collection = lib_meta.get('blend_collection') or \
+                           _discover_blend_collection(self.filepath)
+        if not blend_collection:
+            self.report(
+                {'ERROR'},
+                "Cannot determine which collection to load. "
+                "Create a companion pack.json with 'blend_collection' set, "
+                "or ensure the blend file contains exactly one '*_Primitives' collection.",
+            )
+            return None
+
+        category = lib_meta.get('grid_category', GridCategory.OUTER_GRID)
+        created = _load_primitives_from_blend(
+            self, self.filepath, blend_collection, category
         )
+        if created is None:
+            return None
 
-        # Activate pack-scoped connector registry if embedded
+        source_mode = 'hybrid' if companion_json else 'blend_only'
+        return created, lib_meta, source_mode, json_path, self.filepath
+
+    def _activate_connectors(self, lib_meta: dict) -> str:
+        """Activate session connector registry from pack manifest.
+
+        Returns a short status string for the operator info message,
+        e.g. ``", 5 connectors activated"`` or ``""``.
+        """
         connector_dicts = lib_meta.get('connectors')
-        connector_msg = ""
-        if connector_dicts:
-            from .connector_registry import ConnectorRegistry, ConnectorDefinition, set_session_registry
-            reg = ConnectorRegistry.__new__(ConnectorRegistry)
-            reg.connectors = {}
-            for cd in connector_dicts:
-                try:
-                    reg.register(ConnectorDefinition.from_dict(cd))
-                except Exception:
-                    pass
-            if reg.connectors:
-                set_session_registry(reg)
-                connector_msg = f", {len(reg.connectors)} connectors activated"
-
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in created:
-            obj.select_set(True)
-        context.view_layer.objects.active = created[-1]
-        self.report({'INFO'}, f"Loaded {len(created)} primitives from '{lib_meta.get('library_name', 'pack')}'{connector_msg}")
-        return {'FINISHED'}
+        if not connector_dicts:
+            return ""
+        from .connector_registry import (
+            ConnectorRegistry, ConnectorDefinition, set_session_registry,
+        )
+        reg = ConnectorRegistry.__new__(ConnectorRegistry)
+        reg.connectors = {}
+        for cd in connector_dicts:
+            try:
+                reg.register(ConnectorDefinition.from_dict(cd))
+            except Exception:
+                pass
+        if reg.connectors:
+            set_session_registry(reg)
+            return f", {len(reg.connectors)} connectors activated"
+        return ""
 
 
 class OBJECT_OT_WFCSavePack(bpy.types.Operator):
@@ -1230,6 +1445,9 @@ class OBJECT_OT_WFCRenamePack(bpy.types.Operator):
             filepath=pack.get('filepath'),
             physical_size=pack['physical_size'],
             resolution_multiplier=pack['resolution_multiplier'],
+            # Preserve hybrid fields so renaming a pack never loses its .blend link
+            blend_filepath=pack.get('blend_filepath'),
+            source_mode=pack.get('source_mode', 'json_only'),
         )
         return {'FINISHED'}
 

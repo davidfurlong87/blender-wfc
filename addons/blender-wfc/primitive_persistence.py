@@ -16,6 +16,7 @@ See docs/features/PRIMITIVE_GENERATION_ANALYSIS.md for architecture details.
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict
 
@@ -26,6 +27,64 @@ except ImportError:
     from primitive_data_core import PrimitiveData
 
 
+# ---------------------------------------------------------------------------
+# Pack file-discovery helpers (Stage 7 — Task 4)
+# ---------------------------------------------------------------------------
+
+def slugify_collection_name(pack_name: str) -> str:
+    """Convert a pack display name to a stable Blender collection name.
+
+    Generated once on first hybrid export and stored in ``pack.json`` as
+    ``blend_collection``.  Subsequent renames of the pack do not change it.
+
+    Rules:
+    - Non-word characters (except spaces and hyphens) are stripped.
+    - Spaces and hyphens are collapsed to underscores.
+    - The suffix ``_Primitives`` is appended.
+    - An empty or entirely-punctuation name falls back to ``WFC_Primitives``.
+
+    Examples::
+
+        slugify_collection_name("My Building Pack") -> "My_Building_Pack_Primitives"
+        slugify_collection_name("building!!")       -> "building_Primitives"
+        slugify_collection_name("")                 -> "WFC_Primitives"
+    """
+    slug = re.sub(r'[^\w\s-]', '', pack_name)
+    slug = re.sub(r'[\s-]+', '_', slug.strip())
+    return f"{slug}_Primitives" if slug else "WFC_Primitives"
+
+
+def resolve_blend_path(json_filepath: str, blend_source: str) -> str:
+    """Resolve *blend_source* (a filename or relative path) relative to *json_filepath*.
+
+    Keeps pack folders portable: moving the folder preserves the relationship
+    between the two files.
+
+    Example::
+
+        resolve_blend_path('/packs/building/pack.json', 'pack.blend')
+        # -> '/packs/building/pack.blend'
+    """
+    return str(Path(json_filepath).parent / blend_source)
+
+
+def find_companion_json(blend_filepath: str) -> Optional[str]:
+    """Look for a companion ``*.json`` manifest next to a ``*.blend`` file.
+
+    Checks for a file with the same stem and a ``.json`` extension in the
+    same directory.  Returns the absolute path string if found, else ``None``.
+
+    Example::
+
+        find_companion_json('/packs/building/pack.blend')
+        # -> '/packs/building/pack.json'   (if it exists)
+        # -> None                          (if it does not)
+    """
+    candidate = Path(blend_filepath).with_suffix('.json')
+    return str(candidate) if candidate.exists() else None
+
+
+# ---------------------------------------------------------------------------
 # Default library file name for each grid category.
 # Used by load_primitives_by_category() to find the right file automatically.
 CATEGORY_LIBRARY_FILES: Dict[str, str] = {
@@ -176,25 +235,40 @@ class PrimitivePersistence:
         description: str = "",
         metadata: Optional[Dict[str, str]] = None,
         connectors: Optional[List[dict]] = None,
+        blend_source: Optional[str] = None,
+        blend_collection: Optional[str] = None,
         pretty: bool = True
     ) -> Tuple[bool, List[str]]:
-        """connectors: optional list of connector definition dicts as produced
-        by ``ConnectorDefinition.to_dict()``.  When provided they are embedded
-        in the pack JSON under the ``"connectors"`` key so the file is fully
-        self-contained and can re-activate its own registry on load."""
-        """
-        Save multiple primitives to a single library file
+        """Save multiple primitives to a single library (pack) JSON file.
 
         Args:
-            primitives: List of PrimitiveData instances
-            filepath: Path to save library file
-            library_name: Name of the library
-            description: Description of the library
-            metadata: Optional metadata (author, version, etc.)
-            pretty: If True, format JSON with indentation
+            primitives:        List of PrimitiveData instances.  May be empty
+                               for a hybrid pack where geometry lives in a
+                               companion ``.blend`` file.
+            filepath:          Path to write the JSON file.
+            library_name:      Human-readable pack name.
+            description:       Pack description string.
+            metadata:          Extra key/value pairs merged into
+                               ``library_metadata`` (author, version, etc.).
+            connectors:        Optional list of connector definition dicts from
+                               ``ConnectorDefinition.to_dict()``.  Embedded
+                               under ``"connectors"`` so the pack is
+                               self-contained and can restore its session
+                               registry on load.
+            blend_source:      Relative path to a companion ``.blend`` file
+                               (e.g. ``"pack.blend"``).  When set, the loader
+                               treats the blend as the authoritative geometry
+                               source and writes ``blend_source`` into
+                               ``library_metadata``.
+            blend_collection:  Stable Blender collection name inside the blend
+                               (e.g. ``"Building_Pack_Primitives"``).  Use
+                               :func:`slugify_collection_name` to generate this
+                               on first export.  Written into
+                               ``library_metadata`` alongside *blend_source*.
+            pretty:            If ``True``, write indented JSON (default).
 
         Returns:
-            (success, errors): Tuple of success boolean and error list
+            ``(success, errors)``
         """
         errors = []
 
@@ -219,6 +293,14 @@ class PrimitivePersistence:
             library_metadata['library_name'] = library_name
             library_metadata['description'] = description
             library_metadata['primitive_count'] = len(primitives)
+
+            # Hybrid pack fields — written when a companion .blend file exists.
+            # blend_source is a filename/relative path; blend_collection is the
+            # stable collection name inside the .blend to append on load.
+            if blend_source is not None:
+                library_metadata['blend_source'] = blend_source
+            if blend_collection is not None:
+                library_metadata['blend_collection'] = blend_collection
 
             output = {
                 'format_version': self.format_version,
@@ -293,7 +375,13 @@ class PrimitivePersistence:
             primitive_dicts = data.get('primitives', [])
 
             if not primitive_dicts:
-                errors.append("No primitives found in library file")
+                # A hybrid pack (blend_source present) intentionally stores no
+                # vertex geometry in the JSON — the .blend file is the source.
+                # Return the populated metadata so the caller can proceed with
+                # blend loading.  A JSON-only pack with no primitives is an
+                # error and should be reported.
+                if not metadata.get('blend_source'):
+                    errors.append("No primitives found in library file")
                 return primitives, metadata, errors
 
             # Create PrimitiveData instances

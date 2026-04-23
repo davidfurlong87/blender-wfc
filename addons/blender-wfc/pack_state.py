@@ -29,11 +29,19 @@ def get_active_pack() -> Optional[Dict[str, Any]]:
     """Return the active pack dict, or ``None`` if no pack is loaded.
 
     Keys present when a pack is active:
-    - ``name``                 (str)   Human-readable pack name
-    - ``category``             (str)   Grid category, e.g. ``'building'``
-    - ``filepath``             (str|None)  Absolute path to the JSON file, or None
-    - ``physical_size``        (float) Default cell size in metres
-    - ``resolution_multiplier``(int)   Default resolution multiplier
+
+    - ``name``                  (str)        Human-readable pack name
+    - ``category``              (str)        Grid category, e.g. ``'building'``
+    - ``filepath``              (str|None)   Absolute path to the JSON manifest,
+                                             or ``None`` for an unsaved pack
+    - ``physical_size``         (float)      Default cell size in metres
+    - ``resolution_multiplier`` (int)        Default resolution multiplier
+    - ``blend_filepath``        (str|None)   Absolute path to the companion
+                                             ``.blend`` file, or ``None`` for
+                                             JSON-only packs (Stage 7)
+    - ``source_mode``           (str)        One of ``'json_only'``,
+                                             ``'hybrid'``, or ``'blend_only'``
+                                             (Stage 7)
     """
     return _active_pack
 
@@ -49,6 +57,8 @@ def set_active_pack(
     filepath: Optional[str] = None,
     physical_size: float = 8.0,
     resolution_multiplier: int = 1,
+    blend_filepath: Optional[str] = None,
+    source_mode: str = 'json_only',
 ) -> None:
     """Set (or replace) the active pack.
 
@@ -56,30 +66,59 @@ def set_active_pack(
         name:                   Human-readable display name for the pack.
         category:               Grid category string (``'building'``,
                                 ``'outer_grid'``, etc.).
-        filepath:               Absolute path to the backing JSON file, or
+        filepath:               Absolute path to the JSON manifest file, or
                                 ``None`` for a pack that has not been saved yet.
         physical_size:          Default physical size in metres for new
                                 primitives created inside this pack.
         resolution_multiplier:  Default resolution multiplier for new
                                 primitives created inside this pack.
+        blend_filepath:         Absolute path to a companion ``.blend`` file,
+                                or ``None`` for JSON-only packs.  Set by the
+                                hybrid loader (Stage 7).
+        source_mode:            One of ``'json_only'`` (default), ``'hybrid'``
+                                (JSON manifest + blend geometry), or
+                                ``'blend_only'`` (no companion JSON found).
     """
     global _active_pack
     _active_pack = {
-        'name': name,
-        'category': category,
-        'filepath': filepath,
-        'physical_size': physical_size,
+        'name':                  name,
+        'category':              category,
+        'filepath':              filepath,
+        'physical_size':         physical_size,
         'resolution_multiplier': resolution_multiplier,
+        'blend_filepath':        blend_filepath,
+        'source_mode':           source_mode,
     }
 
 
 def update_active_pack_filepath(filepath: str) -> None:
-    """Update only the filepath of the active pack (called after a Save).
+    """Update only the JSON manifest filepath of the active pack (called after a Save).
 
     Does nothing if no pack is active.
     """
     if _active_pack is not None:
         _active_pack['filepath'] = filepath
+
+
+def update_active_pack_blend_filepath(filepath: str) -> None:
+    """Update the blend filepath of the active pack and set source_mode to ``'hybrid'``.
+
+    Called after a successful hybrid export (Stage 7).
+    Does nothing if no pack is active.
+    """
+    if _active_pack is not None:
+        _active_pack['blend_filepath'] = filepath
+        _active_pack['source_mode'] = 'hybrid'
+
+
+def is_hybrid() -> bool:
+    """Return ``True`` if the active pack has a companion ``.blend`` file."""
+    return _active_pack is not None and _active_pack.get('source_mode') in ('hybrid', 'blend_only')
+
+
+def get_blend_filepath() -> Optional[str]:
+    """Return the active pack's blend filepath, or ``None`` if not set."""
+    return _active_pack.get('blend_filepath') if _active_pack is not None else None
 
 
 def clear_active_pack() -> None:
