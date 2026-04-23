@@ -254,11 +254,14 @@ In rough order of value:
 
 21. - [x] **Merge two packs** — combine primitives and connectors from two JSON files, detecting and resolving connector name conflicts; depends on pack-scoped connector registry (Stage 3 ✅)
 22. - [ ] **Connector-aware context filtering** — restrict the connector dropdown based on what the outer grid has placed adjacent to the current cell; depends on the outer grid collapse system
-23. - [ ] **Material pack** — export materials alongside primitives for a fully portable pack; depends on the pack format being finalised (Stage 7 ✅)
+23. - [x] **Material pack** — export materials alongside primitives for a fully portable pack; depends on the pack format being finalised (Stage 7 ✅)
+24. - [ ] **Blend-only connector fallback load chain** — read embedded `wfc_connectors.json` from a `.blend` when no usable sidecar JSON is available, then fall back to inferred connector names and finally the global registry if needed
+
+**Authoritative open-items list:** see `PROJECT_WIDE_REMAINING_WORK_ROADMAP.md` in this folder.
 
 ---
 
-### Material pack — detailed task breakdown (stretch goal 23)
+### Material pack — detailed task breakdown (stretch goal 23) ✅ DONE
 
 **Goal:** make hybrid pack `.blend` files fully portable, even when primitives use
 image-texture-based materials, and allow exporting a standalone shared material
@@ -266,38 +269,29 @@ library that multiple packs can reference.
 
 There are two sub-problems:
 
-#### MP-A — Image packing in hybrid blend export
+#### MP-A — Image packing in hybrid blend export ✅
 
 When `_save_as_blend_file` writes a `.blend`, it already gathers materials into
 the datablocks set.  However, if a material references an external image texture,
 that image is written only as a path reference — the `.blend` is not self-contained
 and will show broken textures on another machine.
 
-Tasks:
+Tasks completed:
 
-- **MP-A1** — Add `_gather_images_from_materials(material_list)` helper that
-  walks each material's node tree and returns all `Image` datablocks referenced
-  by `ShaderNodeTexImage` nodes.
-- **MP-A2** — In `_save_as_blend_file`, call the helper, temporarily pack any
-  external images (`image.pack()`), add them to the datablocks set, write the
-  blend, then restore unmodified images to their original state (`image.unpack()`).
-- **MP-A3** — Add `image_count` to the operator's info message so the user knows
-  textures were bundled.
+- **MP-A1** — `_gather_images_from_materials(material_list)` helper added
+- **MP-A2** — Hybrid save path now packs external images before write and restores them afterward
+- **MP-A3** — Save operator now reports bundled image count
 
-#### MP-B — Standalone material library export
+#### MP-B — Standalone material library export ✅
 
 An optional `materials.blend` that contains only materials + their images, with
 no geometry.  Multiple packs can share one material library, avoiding duplication.
 
-Tasks:
+Tasks completed:
 
-- **MP-B1** — Add `OBJECT_OT_WFCExportMaterials` operator (file browser, `.blend`
-  extension).  Gathers all unique materials from the active pack's primitives,
-  packs external images, writes a `materials.blend`.
-- **MP-B2** — Add an **Export Materials…** button in the Pack panel (shown when
-  a pack is active).
-- **MP-B3** — Tests: structural verification that the image-gathering helper
-  handles no-material, no-node-tree, and no-image-node edge cases cleanly.
+- **MP-B1** — `OBJECT_OT_WFCExportMaterials` operator added
+- **MP-B2** — **Export Materials…** button added to the Pack panel
+- **MP-B3** — Structural tests added for the image-gathering helper
 
 ---
 
@@ -318,5 +312,5 @@ Stage 6 (B1, B2, B4)               ✅ done
      |
 Stage 7 (blend pack support)        ✅ done
      |
-Stretch goals (merge, filtering, material pack)   ← next
+Stretch goals (context filtering, connector fallback load chain)   ← next
 ```

@@ -1,6 +1,9 @@
 # Beginner Guide: Creating Inner-Building Primitives from Scratch
 
-**Audience:** A brand-new user with no project context and only basic Blender familiarity.
+**Audience:** A user who already understands the basic pack workflow and now wants to create inner-building primitives.
+
+> If you have not created a pack before, start with
+> `docs/features/primitives/BEGINNER_PACK_AUTHORING_GUIDE.md` first.
 
 **Goal:** Start in a fresh Blender file, enable the addon, create a new inner-grid building primitive, assign all required metadata in the UI, save it to JSON, and validate that it loads and generates modules correctly.
 

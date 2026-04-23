@@ -1,4 +1,4 @@
-## Export to Blend File — Stage 7 Plan ✅ COMPLETE
+## Export to Blend File — Stage 7 Plan ✅ CORE COMPLETE
 
 This document turns the early Stage 7 discussion into a concrete plan.
 
@@ -327,7 +327,9 @@ This gives immediate value and is lower risk than the write path.
 
 ## Implementation task breakdown
 
-All tasks below are complete. See the material pack section at the bottom for remaining stretch work.
+Core Stage 7 save/load work is complete. Remaining follow-up work is limited to
+blend-side connector fallback on load and broader future roadmap items. See
+`PROJECT_WIDE_REMAINING_WORK_ROADMAP.md` in this folder for the authoritative list.
 
 ### Task 1 — PoC: verify Blender write/read round-trip ✅
 
@@ -404,15 +406,15 @@ them across UI operators.
 - `addons/blender-wfc/primitive_adapter.py`
 - `addons/blender-wfc/collectiontools/*`
 
-### Task 6 — Implement connector-registry fallback chain ✅
+### Task 6 — Implement connector-registry fallback chain ⚠️ PARTIAL
 
 **Goal:** make `.blend` loading resilient even without a perfect sidecar JSON.
 
-- load connectors from `pack.json` when available
-- if missing, attempt to read `wfc_connectors.json` from the imported blend data
-- if still missing, infer connector names referenced by primitive objects
-- if inference fails or is incomplete, fall back to the default global registry
-  and warn the user
+- [x] load connectors from `pack.json` when available
+- [ ] if missing, attempt to read `wfc_connectors.json` from the imported blend data
+- [ ] if still missing, infer connector names referenced by primitive objects
+- [x] if pack-local connectors are unavailable, continue in global-registry mode
+- [ ] warn the user clearly about which fallback path was used
 
 **Primary files:**
 
@@ -478,13 +480,14 @@ the same active-pack result.
 - `addons/blender-wfc/primitive_ui.py`
 - `addons/blender-wfc/primitive_persistence.py`
 
-### Task 11 — Embed connector-registry fallback into the exported blend ✅
+### Task 11 — Embed connector-registry fallback into the exported blend ⚠️ PARTIAL
 
 **Goal:** make standalone blend files more self-contained.
 
-- write a `wfc_connectors.json` text datablock during export
-- define how it is updated on repeated saves
-- teach the loader to read it when sidecar JSON connectors are unavailable
+- [x] write a `wfc_connectors.json` text datablock during export
+- [x] define how it is updated on repeated saves
+- [ ] teach the loader to read it when sidecar JSON connectors are unavailable
+- [ ] infer connector names from primitive object properties when both JSON and embedded registry are missing
 
 ### Task 12 — UX polish and migration helpers ✅
 
@@ -498,36 +501,36 @@ the same active-pack result.
 
 ---
 
-## Material pack — remaining stretch work
+## Material pack — stretch work completed ✅
 
-### MP-A1 — `_gather_images_from_materials()` helper
+### MP-A1 — `_gather_images_from_materials()` helper ✅
 
 Walk each material's node tree and return all `Image` datablocks referenced by
 `ShaderNodeTexImage` nodes.  Returns an empty list when there is no node tree or
 no image nodes.
 
-### MP-A2 — Image packing during hybrid blend export
+### MP-A2 — Image packing during hybrid blend export ✅
 
 In `_save_as_blend_file`: call the helper, temporarily pack any external images
 (`image.pack()`), add them to the datablocks set before writing, then restore
 each image to its original state after the write.
 
-### MP-A3 — Bundled image count in the info message
+### MP-A3 — Bundled image count in the info message ✅
 
 Append `", N image(s) bundled"` to the operator's `{'INFO'}` report so the user
 can see that textures were embedded.
 
-### MP-B1 — `OBJECT_OT_WFCExportMaterials` operator
+### MP-B1 — `OBJECT_OT_WFCExportMaterials` operator ✅
 
 File-browser operator (`.blend` extension) that gathers all unique materials from
 the active pack's primitives, packs external images, and writes a standalone
 `materials.blend` containing only materials + images (no geometry).
 
-### MP-B2 — "Export Materials…" button in the Pack panel
+### MP-B2 — "Export Materials…" button in the Pack panel ✅
 
 Show the button in `OBJECT_PT_WFCPackPanel.draw()` whenever a pack is active.
 
-### MP-B3 — Tests
+### MP-B3 — Tests ✅
 
 Structural checks that the image-gathering helper handles no-material, no-node-
 tree, and no-image-node objects without raising.
