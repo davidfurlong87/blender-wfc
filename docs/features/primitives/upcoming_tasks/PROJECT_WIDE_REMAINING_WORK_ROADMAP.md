@@ -72,19 +72,31 @@ but is silently excluded from the export. No error is shown.
 - [ ] Repeat for `WFC Copy Type & Connectors` with multiple selected objects
 - [ ] Repeat with a primitive assigned to a different category than the pack — confirm warning is shown
 
-### 0.2 Connector Registry not blank when creating a new pack
+### 0.2 Connector Registry not blank when creating a new pack ✅
 
 **Source:** New user feedback. When creating a new pack, the Connector Registry is pre-populated
 with connectors from other packs or the global defaults. The user expects to start with a blank
 canvas and add connectors explicitly.
 
 **Note:** P3-B specified that `data/connectors.json` should be "the system default / starting
-template, not the enforced single source of truth." The current implementation does not honour
+template, not the enforced single source of truth." The current implementation did not honour
 this for new packs.
 
-- [ ] Confirm the new-pack flow clears the session connector registry before activating
-- [ ] Make global defaults opt-in: offer an "Import from global defaults" button rather than pre-loading
-- [ ] Verify no stale connectors from a previously loaded pack survive into a new pack creation
+**Fix (implemented):**
+- `OBJECT_OT_WFCNewPack.execute()` now initialises an explicitly **empty** `ConnectorRegistry`
+  via `set_session_registry` instead of calling `clear_session_registry()` (which left
+  `_session_registry = None`, causing `ensure_mutable_session_registry` to copy global defaults on
+  first use).
+- Added **"Load Defaults"** button (`OBJECT_OT_WFCLoadDefaultConnectors`) — merges the built-in
+  ROAD / BUILDING / PAVEMENT connectors into the session registry without overwriting custom ones.
+- Added **"Import from Pack…"** button (`OBJECT_OT_WFCImportConnectorsFromPack`) — opens a file
+  browser targeting `.json` manifests; merges connector definitions from any saved pack into the
+  current session registry. Both buttons appear at the bottom of the Connector Registry sub-panel.
+
+- [x] Confirm the new-pack flow clears the session connector registry before activating
+- [x] Make global defaults opt-in: added "Load Defaults" button
+- [x] Offer "Import from Pack…" button so users can seed from any existing pack
+- [x] Verify no stale connectors from a previously loaded pack survive into a new pack creation
 
 ### 0.3 Pack base-size defaults not propagating to new primitive dialog
 
@@ -391,7 +403,7 @@ These block existing core workflows for any new user. No new features should be 
 2. [x] **0.1b** Copy fix — `CopyConnectors.execute()` must re-link each target into `WFC_Primitives_{category}` after copying
 3. [ ] **0.1c** Secondary warning — exporters should warn when primitives exist in a different category than the pack
 4. [ ] **0.1d** Regression test for the registration flow
-5. [ ] **0.2** Connector Registry not blank on new pack creation — fixed and verified
+5. [x] **0.2** Connector Registry not blank on new pack creation — fixed and verified
 6. [ ] **0.3** Pack base-size defaults not propagating to new primitive dialog — fixed and verified
 7. [ ] **0.4** Blank `compatible_with` allowed and cannot be edited — validation added, edit operator added
 8. [x] **0.5** Auto-append `.blend` during pack export when the user omits the extension

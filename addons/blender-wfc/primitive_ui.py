@@ -212,6 +212,19 @@ class OBJECT_PT_WFCConnectorRegistryPanel(bpy.types.Panel):
 
         layout.operator("object.wfc_add_connector", text="Add Connector", icon='ADD')
 
+        layout.separator()
+        row = layout.row(align=True)
+        row.operator(
+            "object.wfc_load_default_connectors",
+            text="Load Defaults",
+            icon='PRESET',
+        )
+        row.operator(
+            "object.wfc_import_connectors_from_pack",
+            text="Import from Pack…",
+            icon='IMPORT',
+        )
+
 
 # ============================================================================
 # Primitive Builder panel
@@ -1035,6 +1048,93 @@ class OBJECT_OT_WFCRenameConnector(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class OBJECT_OT_WFCLoadDefaultConnectors(bpy.types.Operator):
+    """Populate the active pack's connector registry with the built-in defaults
+    (ROAD, BUILDING, PAVEMENTPOS, PAVEMENTNEG).  Already-present connectors are
+    not overwritten, so it is safe to use as a starting point."""
+    bl_idname = "object.wfc_load_default_connectors"
+    bl_label = "Load Defaults"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        from .connector_registry import (
+            connector_registry as _global_reg,
+            ensure_mutable_session_registry,
+        )
+        reg = ensure_mutable_session_registry()
+        added = 0
+        for cd in _global_reg.connectors.values():
+            if cd.name not in reg.connectors:
+                reg.register(cd)
+                added += 1
+        if added:
+            self.report({'INFO'}, f"Added {added} default connector(s)")
+        else:
+            self.report({'INFO'}, "All default connectors are already present")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCImportConnectorsFromPack(bpy.types.Operator):
+    """Import connector definitions from another pack's JSON manifest.
+    Existing connectors with the same name are updated; new ones are added."""
+    bl_idname = "object.wfc_import_connectors_from_pack"
+    bl_label = "Import from Pack…"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath:    StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})  # type: ignore
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import json as _json
+        from pathlib import Path
+        from .connector_registry import (
+            ConnectorDefinition, ensure_mutable_session_registry,
+        )
+
+        path = Path(self.filepath)
+        if not path.exists():
+            self.report({'ERROR'}, f"File not found: {self.filepath}")
+            return {'CANCELLED'}
+
+        try:
+            with open(path, 'r') as f:
+                data = _json.load(f)
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not read file: {exc}")
+            return {'CANCELLED'}
+
+        connector_dicts = data.get('connectors', [])
+        if not isinstance(connector_dicts, list) or not connector_dicts:
+            self.report({'WARNING'}, "No connector definitions found in that pack file")
+            return {'CANCELLED'}
+
+        reg = ensure_mutable_session_registry()
+        added, updated = 0, 0
+        for cd_dict in connector_dicts:
+            try:
+                cd = ConnectorDefinition.from_dict(cd_dict)
+                already = cd.name in reg.connectors
+                reg.register(cd)
+                if already:
+                    updated += 1
+                else:
+                    added += 1
+            except Exception:
+                pass
+
+        parts = []
+        if added:
+            parts.append(f"{added} added")
+        if updated:
+            parts.append(f"{updated} updated")
+        self.report({'INFO'}, "Connectors imported — " + ", ".join(parts) if parts else "Nothing imported")
+        return {'FINISHED'}
+
+
 # ============================================================================
 # Pack management operators (Stage 4 — P2-B)
 # ============================================================================
@@ -1077,7 +1177,7 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
 
     def execute(self, context):
         from .pack_state import set_active_pack
-        from .connector_registry import clear_session_registry
+        from .connector_registry import ConnectorRegistry, set_session_registry
         _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
         size = (_outer / self.resolution_multiplier) if self.resolution_multiplier > 1 else self.physical_size
         set_active_pack(
@@ -1086,7 +1186,13 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
             physical_size=size,
             resolution_multiplier=self.resolution_multiplier,
         )
-        clear_session_registry()
+        # Initialise with an explicitly *empty* session registry instead of
+        # clearing to None.  clear_session_registry() → None causes
+        # ensure_mutable_session_registry() to copy global defaults on the
+        # first connector add, which is not the clean-slate we want here.
+        empty_reg = ConnectorRegistry.__new__(ConnectorRegistry)
+        empty_reg.connectors = {}
+        set_session_registry(empty_reg)
         self.report({'INFO'}, f"Pack '{self.pack_name}' created  ({self.category})")
         return {'FINISHED'}
 
@@ -2352,6 +2458,8 @@ PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCRenamePrimitive,
     OBJECT_OT_WFCDeletePrimitive,
     # Connector registry management (Stage 5 — P3-A / P3-C)
+    OBJECT_OT_WFCLoadDefaultConnectors,
+    OBJECT_OT_WFCImportConnectorsFromPack,
     OBJECT_OT_WFCAddConnector,
     OBJECT_OT_WFCDeleteConnector,
     OBJECT_OT_WFCRenameConnector,
