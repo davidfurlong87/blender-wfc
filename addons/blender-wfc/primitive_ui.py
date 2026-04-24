@@ -503,7 +503,10 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         size_col.enabled = (self.resolution_multiplier == 1)
         row.prop(self, "resolution_multiplier")
         if self.resolution_multiplier > 1:
-            _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
+            from .pack_state import get_active_pack
+            _pack = get_active_pack()
+            _outer = (_pack['outer_grid_size'] if _pack and 'outer_grid_size' in _pack
+                      else DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])
             implied = _outer / self.resolution_multiplier
             box.label(
                 text=f"Physical size auto-set to {implied:.4g}m  ({_outer:.4g}m ÷ {self.resolution_multiplier})",
@@ -548,12 +551,19 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
 
         # Assign sizing and symmetry metadata.
         # When resolution_multiplier > 1 the physical size is derived from the
-        # outer cell size (8m) so the two values are always consistent.
+        # outer-grid cell size so the two values are always consistent.  Use the
+        # active pack's declared outer_grid_size when available; fall back to the
+        # global default so the behaviour is unchanged for packs created before
+        # outer_grid_size was introduced.
         obj.grid_category = self.grid_category
         obj.resolution_multiplier = self.resolution_multiplier
         obj.rotation_invariant = self.rotation_invariant
         if self.resolution_multiplier > 1:
-            obj.physical_size = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID] / self.resolution_multiplier
+            from .pack_state import get_active_pack
+            _pack = get_active_pack()
+            _outer = (_pack['outer_grid_size'] if _pack and 'outer_grid_size' in _pack
+                      else DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])
+            obj.physical_size = _outer / self.resolution_multiplier
         else:
             obj.physical_size = self.physical_size
 
@@ -1149,42 +1159,53 @@ class OBJECT_OT_WFCNewPack(bpy.types.Operator):
     category: EnumProperty(
         name="Grid Category", items=GRID_CATEGORIES, default='building'
     )  # type: ignore
-    physical_size: FloatProperty(
-        name="Physical Size (m)", default=2.0, min=0.1, soft_max=100.0
+    outer_grid_size: FloatProperty(
+        name="Outer Grid Cell Size (m)",
+        description=(
+            "Size of one outer-grid cell in metres (resolution = 1). "
+            "The inner primitive size is derived as this value divided by "
+            "the Resolution Multiplier."
+        ),
+        default=8.0, min=0.1, soft_max=100.0,
     )  # type: ignore
     resolution_multiplier: IntProperty(
         name="Resolution Multiplier", default=4, min=1, soft_max=16
     )  # type: ignore
 
     def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self, width=360)
+        return context.window_manager.invoke_props_dialog(self, width=380)
 
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "pack_name")
         layout.prop(self, "category")
-        row = layout.row(align=True)
-        col = row.column(align=True)
-        col.prop(self, "physical_size")
-        col.enabled = (self.resolution_multiplier == 1)
-        row.prop(self, "resolution_multiplier")
+        layout.prop(self, "outer_grid_size")
+        layout.prop(self, "resolution_multiplier")
+        inner = self.outer_grid_size / max(self.resolution_multiplier, 1)
         if self.resolution_multiplier > 1:
-            _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
             layout.label(
-                text=f"Physical size: {_outer / self.resolution_multiplier:.4g}m  ({_outer:.4g}m ÷ {self.resolution_multiplier})",
+                text=(
+                    f"Inner primitive size: {inner:.4g} m"
+                    f"  ({self.outer_grid_size:.4g} m ÷ {self.resolution_multiplier})"
+                ),
+                icon='INFO',
+            )
+        else:
+            layout.label(
+                text=f"Cell size: {inner:.4g} m  (outer grid, no sub-division)",
                 icon='INFO',
             )
 
     def execute(self, context):
         from .pack_state import set_active_pack
         from .connector_registry import ConnectorRegistry, set_session_registry
-        _outer = DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]
-        size = (_outer / self.resolution_multiplier) if self.resolution_multiplier > 1 else self.physical_size
+        inner_size = self.outer_grid_size / max(self.resolution_multiplier, 1)
         set_active_pack(
             name=self.pack_name,
             category=self.category,
-            physical_size=size,
+            physical_size=inner_size,
             resolution_multiplier=self.resolution_multiplier,
+            outer_grid_size=self.outer_grid_size,
         )
         # Initialise with an explicitly *empty* session registry instead of
         # clearing to None.  clear_session_registry() → None causes
@@ -1533,15 +1554,21 @@ class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
 
         # Activate pack state
         from .pack_state import set_active_pack
+        _phys_size = float(lib_meta.get('physical_size',
+                                        DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID]))
+        _res_mult  = int(lib_meta.get('resolution_multiplier', 1))
+        # outer_grid_size: read from manifest if present (new packs will have it),
+        # otherwise derive from physical_size × resolution_multiplier (old packs).
+        _outer_size = float(lib_meta.get('outer_grid_size', _phys_size * _res_mult))
         set_active_pack(
             name=lib_meta.get('library_name', 'Loaded Pack'),
             category=lib_meta.get('grid_category', GridCategory.OUTER_GRID),
             filepath=json_path,
-            physical_size=float(lib_meta.get('physical_size',
-                                             DEFAULT_GRID_SIZES[GridCategory.OUTER_GRID])),
-            resolution_multiplier=int(lib_meta.get('resolution_multiplier', 1)),
+            physical_size=_phys_size,
+            resolution_multiplier=_res_mult,
             blend_filepath=blend_path,
             source_mode=source_mode,
+            outer_grid_size=_outer_size,
         )
 
         connector_msg = self._activate_connectors(
@@ -1847,6 +1874,8 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             metadata={
                 'grid_category': pack['category'],
                 'physical_size': str(pack['physical_size']),
+                'outer_grid_size': str(pack.get('outer_grid_size',
+                    pack['physical_size'] * pack['resolution_multiplier'])),
                 'resolution_multiplier': str(pack['resolution_multiplier']),
                 'author': 'WFC Addon',
                 'version': '1.0',
@@ -2001,6 +2030,8 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             metadata={
                 'grid_category': pack['category'],
                 'physical_size': str(pack['physical_size']),
+                'outer_grid_size': str(pack.get('outer_grid_size',
+                    pack['physical_size'] * pack['resolution_multiplier'])),
                 'resolution_multiplier': str(pack['resolution_multiplier']),
                 'author': 'WFC Addon',
                 'version': '1.0',
@@ -2330,6 +2361,7 @@ class OBJECT_OT_WFCRenamePack(bpy.types.Operator):
             # Preserve hybrid fields so renaming a pack never loses its .blend link
             blend_filepath=pack.get('blend_filepath'),
             source_mode=pack.get('source_mode', 'json_only'),
+            outer_grid_size=pack.get('outer_grid_size'),
         )
         return {'FINISHED'}
 

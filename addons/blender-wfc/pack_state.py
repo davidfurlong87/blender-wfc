@@ -34,7 +34,10 @@ def get_active_pack() -> Optional[Dict[str, Any]]:
     - ``category``              (str)        Grid category, e.g. ``'building'``
     - ``filepath``              (str|None)   Absolute path to the JSON manifest,
                                              or ``None`` for an unsaved pack
-    - ``physical_size``         (float)      Default cell size in metres
+    - ``physical_size``         (float)      Inner cell size in metres
+                                             (= outer_grid_size / resolution_multiplier)
+    - ``outer_grid_size``       (float)      Size of one outer-grid cell in metres
+                                             (the resolution=1 reference dimension)
     - ``resolution_multiplier`` (int)        Default resolution multiplier
     - ``blend_filepath``        (str|None)   Absolute path to the companion
                                              ``.blend`` file, or ``None`` for
@@ -59,6 +62,7 @@ def set_active_pack(
     resolution_multiplier: int = 1,
     blend_filepath: Optional[str] = None,
     source_mode: str = 'json_only',
+    outer_grid_size: Optional[float] = None,
 ) -> None:
     """Set (or replace) the active pack.
 
@@ -68,8 +72,8 @@ def set_active_pack(
                                 ``'outer_grid'``, etc.).
         filepath:               Absolute path to the JSON manifest file, or
                                 ``None`` for a pack that has not been saved yet.
-        physical_size:          Default physical size in metres for new
-                                primitives created inside this pack.
+        physical_size:          Inner cell size in metres for new primitives
+                                created inside this pack.
         resolution_multiplier:  Default resolution multiplier for new
                                 primitives created inside this pack.
         blend_filepath:         Absolute path to a companion ``.blend`` file,
@@ -78,6 +82,10 @@ def set_active_pack(
         source_mode:            One of ``'json_only'`` (default), ``'hybrid'``
                                 (JSON manifest + blend geometry), or
                                 ``'blend_only'`` (no companion JSON found).
+        outer_grid_size:        Size of one outer-grid cell in metres (the
+                                resolution=1 reference dimension).  When
+                                ``None`` it is derived as
+                                ``physical_size * resolution_multiplier``.
     """
     global _active_pack
     _active_pack = {
@@ -85,6 +93,8 @@ def set_active_pack(
         'category':              category,
         'filepath':              filepath,
         'physical_size':         physical_size,
+        'outer_grid_size':       outer_grid_size if outer_grid_size is not None
+                                 else physical_size * resolution_multiplier,
         'resolution_multiplier': resolution_multiplier,
         'blend_filepath':        blend_filepath,
         'source_mode':           source_mode,
