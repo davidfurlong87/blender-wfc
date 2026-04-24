@@ -1117,6 +1117,118 @@ def _gather_images_from_materials(materials):
     return found
 
 
+def _parse_connector_registry_text(text_content):
+    """Parse embedded ``wfc_connectors.json`` text and return connector dicts.
+
+    Returns an empty list when the text is empty, malformed, or does not contain
+    a top-level ``connectors`` list.
+    """
+    import json as _json
+
+    if not text_content:
+        return []
+
+    try:
+        payload = _json.loads(text_content)
+    except Exception:
+        return []
+
+    connector_dicts = payload.get('connectors', [])
+    if not isinstance(connector_dicts, list):
+        return []
+    return [cd for cd in connector_dicts if isinstance(cd, dict)]
+
+
+def _infer_connector_dicts_from_objects(objects, default_category='outer_grid'):
+    """Infer placeholder connector definitions from primitive object metadata.
+
+    This is a last-resort recovery path for blend-only loads when no pack-local
+    registry can be restored from JSON or embedded text data.  The inferred
+    definitions are intentionally conservative placeholder entries: symmetric and
+    self-compatible, with the connector name preserved exactly as stored on the
+    object.
+    """
+    inferred = {}
+    fields = (
+        'x_pos_connector', 'x_neg_connector',
+        'y_pos_connector', 'y_neg_connector',
+    )
+
+    for obj in objects or []:
+        if getattr(obj, 'type', 'MESH') != 'MESH':
+            continue
+        category = getattr(obj, 'grid_category', None) or default_category
+        for field in fields:
+            name = str(getattr(obj, field, '') or '').strip()
+            if not name or name == 'NONE':
+                continue
+            if name not in inferred:
+                inferred[name] = {
+                    'name': name,
+                    'description': f"Inferred placeholder connector '{name}' from blend-only pack load",
+                    'compatible_with': [name],
+                    'grid_category': category,
+                    'is_symmetric': True,
+                }
+
+    return [inferred[name] for name in sorted(inferred)]
+
+
+def _textblock_to_string(text_block):
+    """Return full text content from a Blender Text datablock-like object."""
+    if text_block is None:
+        return ""
+    try:
+        return text_block.as_string()
+    except Exception:
+        pass
+
+    lines = getattr(text_block, 'lines', None)
+    if lines is None:
+        return ""
+    return "\n".join(getattr(line, 'body', '') for line in lines)
+
+
+def _load_embedded_connector_dicts_from_blend(blend_path: str):
+    """Load connector definitions from embedded ``wfc_connectors.json`` text.
+
+    Returns ``(connector_dicts, status)`` where *status* is one of:
+    ``'loaded'``, ``'missing'``, ``'malformed'``, or ``'error'``.
+    """
+    text_name = "wfc_connectors.json"
+    existing_names = {text.name for text in bpy.data.texts}
+    loaded_text = None
+
+    try:
+        with bpy.data.libraries.load(blend_path, link=False) as (src, dst):
+            if text_name not in getattr(src, 'texts', []):
+                return [], 'missing'
+            dst.texts = [text_name]
+
+        new_texts = [
+            text for text in bpy.data.texts
+            if text.name not in existing_names and text.name.startswith(text_name)
+        ]
+        loaded_text = new_texts[-1] if new_texts else None
+        if loaded_text is None:
+            return [], 'error'
+
+        connector_dicts = _parse_connector_registry_text(
+            _textblock_to_string(loaded_text)
+        )
+        if connector_dicts:
+            return connector_dicts, 'loaded'
+        return [], 'malformed'
+    except Exception:
+        return [], 'error'
+    finally:
+        if loaded_text is not None:
+            try:
+                bpy.data.texts.remove(loaded_text)
+            except Exception:
+                pass
+
+
 # ============================================================================
 # Migration helper — Export JSON-only pack as Blend (Stage 7 UX polish)
 # ============================================================================
@@ -1302,7 +1414,11 @@ class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
             source_mode=source_mode,
         )
 
-        connector_msg = self._activate_connectors(lib_meta)
+        connector_msg = self._activate_connectors(
+            lib_meta,
+            created=created,
+            blend_path=blend_path,
+        )
 
         bpy.ops.object.select_all(action='DESELECT')
         for obj in created:
@@ -1420,29 +1536,102 @@ class OBJECT_OT_WFCLoadPack(bpy.types.Operator):
         source_mode = 'hybrid' if companion_json else 'blend_only'
         return created, lib_meta, source_mode, json_path, self.filepath
 
-    def _activate_connectors(self, lib_meta: dict) -> str:
-        """Activate session connector registry from pack manifest.
+    def _activate_connectors(self, lib_meta: dict, created=None, blend_path=None) -> str:
+        """Activate the best available connector registry for the loaded pack.
 
-        Returns a short status string for the operator info message,
-        e.g. ``", 5 connectors activated"`` or ``""``.
+        Resolution order:
+        1. connector definitions embedded in the JSON manifest
+        2. embedded ``wfc_connectors.json`` text inside the loaded ``.blend``
+        3. placeholder connector definitions inferred from primitive object props
+        4. the global default registry
+
+        Returns a short suffix for the final operator info message.
         """
-        connector_dicts = lib_meta.get('connectors')
-        if not connector_dicts:
-            return ""
         from .connector_registry import (
-            ConnectorRegistry, ConnectorDefinition, set_session_registry,
+            ConnectorRegistry, ConnectorDefinition,
+            set_session_registry, clear_session_registry, connector_registry,
         )
-        reg = ConnectorRegistry.__new__(ConnectorRegistry)
-        reg.connectors = {}
-        for cd in connector_dicts:
-            try:
-                reg.register(ConnectorDefinition.from_dict(cd))
-            except Exception:
-                pass
-        if reg.connectors:
-            set_session_registry(reg)
-            return f", {len(reg.connectors)} connectors activated"
-        return ""
+
+        def _build_registry(connector_dicts):
+            reg = ConnectorRegistry.__new__(ConnectorRegistry)
+            reg.connectors = {}
+            for cd in connector_dicts or []:
+                try:
+                    reg.register(ConnectorDefinition.from_dict(cd))
+                except Exception:
+                    pass
+            return reg
+
+        clear_session_registry()
+
+        # 1) Exact registry from manifest JSON.
+        manifest_connector_dicts = lib_meta.get('connectors') or []
+        if manifest_connector_dicts:
+            reg = _build_registry(manifest_connector_dicts)
+            if reg.connectors:
+                set_session_registry(reg)
+                return f", {len(reg.connectors)} connectors activated"
+
+        # 2) Embedded registry inside the .blend file.
+        embedded_status = 'missing'
+        if blend_path:
+            embedded_connector_dicts, embedded_status = \
+                _load_embedded_connector_dicts_from_blend(blend_path)
+            if embedded_connector_dicts:
+                reg = _build_registry(embedded_connector_dicts)
+                if reg.connectors:
+                    set_session_registry(reg)
+                    return f", {len(reg.connectors)} connectors activated from embedded blend data"
+
+        # 3) Infer placeholder connectors from the loaded primitive objects.
+        inferred_connector_dicts = _infer_connector_dicts_from_objects(
+            created or [],
+            default_category=lib_meta.get('grid_category', GridCategory.OUTER_GRID),
+        )
+        missing_in_global = [
+            cd for cd in inferred_connector_dicts
+            if cd.get('name') not in connector_registry.connectors
+        ]
+        if missing_in_global:
+            reg = ConnectorRegistry.__new__(ConnectorRegistry)
+            reg.connectors = dict(connector_registry.connectors)
+            added = 0
+            for cd in missing_in_global:
+                try:
+                    reg.register(ConnectorDefinition.from_dict(cd))
+                    added += 1
+                except Exception:
+                    pass
+            if added:
+                set_session_registry(reg)
+                self.report(
+                    {'WARNING'},
+                    "Pack connector definitions were unavailable; "
+                    f"added {added} inferred placeholder connector(s) from primitive metadata. "
+                    "Review compatibility rules before generation.",
+                )
+                return f", {added} inferred connector placeholder(s) activated"
+
+        # 4) Final fallback to the immutable global defaults.
+        if embedded_status == 'malformed':
+            self.report(
+                {'WARNING'},
+                "Embedded connector registry was present but could not be parsed; "
+                "using the global connector registry.",
+            )
+        elif inferred_connector_dicts:
+            self.report(
+                {'WARNING'},
+                "Pack-local connector definitions were unavailable, but all referenced connector names "
+                "already exist in the global registry. Using the global connector registry.",
+            )
+        elif blend_path:
+            self.report(
+                {'WARNING'},
+                "No pack-local connector definitions were found in the manifest, embedded blend data, "
+                "or primitive metadata. Using the global connector registry.",
+            )
+        return ", using global connector registry"
 
 
 class OBJECT_OT_WFCSavePack(bpy.types.Operator):

@@ -401,16 +401,14 @@ _spec = _ilu.spec_from_file_location(
     'primitive_ui_partial',
     os.path.join(_ADDON_ROOT, 'primitive_ui.py'),
 )
-# We can't execute the module (bpy.types not fully stubbed), so we parse it
-# manually by extracting the function via exec on just its source.
-def _load_gather_images_helper():
-    """Extract _gather_images_from_materials from primitive_ui.py without
-    executing the full module (which requires bpy)."""
+# We can't execute the module (bpy.types not fully stubbed), so we parse helper
+# functions directly from the source and exec only those blocks.
+def _extract_top_level_symbol(symbol_name):
+    """Extract one top-level function definition from primitive_ui.py."""
     src_path = os.path.join(_ADDON_ROOT, 'primitive_ui.py')
     with open(src_path) as f:
         src = f.read()
-    # Find the function definition and extract it
-    start = src.index('def _gather_images_from_materials(')
+    start = src.index(f'def {symbol_name}(')
     # Find the next top-level def/class after it
     rest = src[start:]
     lines = rest.splitlines()
@@ -425,10 +423,71 @@ def _load_gather_images_helper():
     fn_src = '\n'.join(lines[:end_line])
     ns = {}
     exec(fn_src, ns)
-    return ns['_gather_images_from_materials']
+    return ns[symbol_name]
 
 
-_gather_images_from_materials = _load_gather_images_helper()
+_parse_connector_registry_text = _extract_top_level_symbol('_parse_connector_registry_text')
+_infer_connector_dicts_from_objects = _extract_top_level_symbol('_infer_connector_dicts_from_objects')
+_gather_images_from_materials = _extract_top_level_symbol('_gather_images_from_materials')
+
+
+def _mock_object(
+    name='Primitive', *,
+    type='MESH',
+    grid_category='building',
+    x_pos='NONE', x_neg='NONE', y_pos='NONE', y_neg='NONE',
+):
+    obj = SimpleNamespace()
+    obj.name = name
+    obj.type = type
+    obj.grid_category = grid_category
+    obj.x_pos_connector = x_pos
+    obj.x_neg_connector = x_neg
+    obj.y_pos_connector = y_pos
+    obj.y_neg_connector = y_neg
+    return obj
+
+
+def test_parse_connector_registry_text():
+    print("\n_parse_connector_registry_text:")
+
+    valid = json.dumps({
+        'connectors': [
+            {'name': 'WALL', 'compatible_with': ['WALL'], 'grid_category': 'building', 'is_symmetric': True},
+            'not-a-dict',
+        ]
+    })
+    result = _parse_connector_registry_text(valid)
+    check("valid JSON returns connector dicts", len(result) == 1)
+    check("connector name preserved", result[0]['name'] == 'WALL')
+
+    result = _parse_connector_registry_text('{bad json')
+    check("malformed JSON returns empty list", result == [])
+
+    result = _parse_connector_registry_text(json.dumps({'hello': 'world'}))
+    check("missing connectors key returns empty list", result == [])
+
+    result = _parse_connector_registry_text(json.dumps({'connectors': 'WALL'}))
+    check("non-list connectors returns empty list", result == [])
+
+
+def test_infer_connector_dicts_from_objects():
+    print("\n_infer_connector_dicts_from_objects:")
+
+    a = _mock_object('A', x_pos='WALL', x_neg='DOOR', y_pos='NONE', y_neg='WINDOW')
+    b = _mock_object('B', x_pos='DOOR', x_neg='WALL', y_pos='EMPTY', y_neg='WINDOW')
+    c = _mock_object('Lamp', type='LIGHT', x_pos='SHOULD_NOT_APPEAR')
+    result = _infer_connector_dicts_from_objects([a, b, c])
+
+    names = [item['name'] for item in result]
+    check("deduplicates connector names across objects", names == ['DOOR', 'EMPTY', 'WALL', 'WINDOW'])
+    check("uses placeholder self-compatibility", all(item['compatible_with'] == [item['name']] for item in result))
+    check("marks inferred connectors symmetric", all(item['is_symmetric'] for item in result))
+    check("uses object category when present", all(item['grid_category'] == 'building' for item in result))
+
+    fallback_obj = _mock_object('RoadA', grid_category='', x_pos='ROAD')
+    result = _infer_connector_dicts_from_objects([fallback_obj], default_category='road_detail')
+    check("falls back to provided default category", result[0]['grid_category'] == 'road_detail')
 
 
 def test_gather_images():
@@ -498,6 +557,8 @@ def run_all():
     test_blend_collection_stability()
     test_missing_companion_json()
     test_companion_json_discovery()
+    test_parse_connector_registry_text()
+    test_infer_connector_dicts_from_objects()
     test_gather_images()
 
     print(f"\n{'=' * 57}")

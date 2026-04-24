@@ -6,13 +6,6 @@ from math import radians
 from enum import Enum
 import sys
 
-# ============================================================================
-# Module Reloading System
-# ============================================================================
-# This block ensures that when the addon is reloaded (disabled/enabled),
-# all modules are properly reloaded in dependency order.
-# See docs/MODULE_RELOADING_GUIDE.md for detailed explanation.
-
 if "bpy" in locals():
     import importlib
 
@@ -21,7 +14,6 @@ if "bpy" in locals():
         importlib.reload(wfc_values)
     if "wfc_enums" in locals():
         importlib.reload(wfc_enums)
-    # NEW: Connector registry (Task 1B.3)
     if "connector_registry" in locals():
         importlib.reload(connector_registry)
 
@@ -43,7 +35,6 @@ if "bpy" in locals():
     # Level 3: Modules that depend on Level 0-2
     if "primitive_data_actual" in locals():
         importlib.reload(primitive_data_actual)
-    # wfc_grid_builder removed in Phase 4 - functionality moved to adapter
     if "wfc_plots" in locals():
         importlib.reload(wfc_plots)
     if "wfc_plot_tools" in locals():
@@ -57,11 +48,6 @@ if "bpy" in locals():
     if "wfc_operators" in locals():
         importlib.reload(wfc_operators)
 
-# ============================================================================
-# Imports
-# ============================================================================
-# All imports happen AFTER the reload block to ensure we get the latest versions
-
 from .wfc_values import (
     bl_category_name, CollectionNames, GridCategory,
     primitives_collection_for, modules_collection_for, grid_collection_for,
@@ -69,14 +55,12 @@ from .wfc_values import (
 )
 from .wfc_enums import PRIMITIVE_TYPES, CUSTOM_PRIMITIVE_TYPES, get_connector_enum_items, GRID_CATEGORIES
 from .wfc_materials import build_all_primitive_materials, MaterialPrimitives
-# NEW: Connector registry (Task 1B.3)
 from .connector_registry import connector_registry
 from .collectiontools.collection_creation import *
 from .wfc_classes import WFCModule, WFCCell, Primitive, Axis, build_module_pairs
 from .primitive_generation_tools import *
 from .primitive_data_actual import *
 from .primitive_ui import build_default_primitives, PRIMITIVE_OPERATORS, PRIMITIVE_PANELS, get_primitive_type_items
-# wfc_grid_builder removed in Phase 4 - functionality moved to adapter
 from .wfc_plots import *
 from .wfc_collections import COLLECTION_PANELS, COLLECTION_OPERATORS
 from .wfc_operators import *
@@ -98,7 +82,7 @@ bl_info = {
 bl_category_name = "wfc"
 
 class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
-    """Panel for creating a full vertex group"""
+    """Panel for creating/clearing primitives and modules"""
     bl_label = "Debug Menu"
     bl_idname = "OBJECT_PT_GenerateAndAssign"
     bl_space_type = 'VIEW_3D'
@@ -117,29 +101,22 @@ class OBJECT_PT_GenerateAndAssign(bpy.types.Panel):
         layout.prop(scene, "total_modules")
 
 
-
+# TODO: Check if these 'clear' methods are compatible with the pack system
 class OBJECT_OT_WFCClearAll(bpy.types.Operator):
     """Reset everything and rebuild primitives, modules, and grid"""
     bl_idname = "object.wfc_clear_all"
     bl_label = "Reset Everything"
-    # bl_space_type = 'VIEW_3D'
-    # bl_region_type = 'UI'
-    # bl_category = bl_category_name
 
     def execute(self, context):
-        # Clear everything
         clear_all_primitives()
         clear_all_modules()
         clear_all_cells()
 
-        # Reset adapter
         reset_wfc_adapter()
 
-        # Rebuild primitives and modules for all categories
         build_all_primitives()
         generate_modules_for_all_loaded_categories()
 
-        # NEW: Use adapter to build grid instead of old build_wfc_grid()
         if len(all_modules) > 0:
             adapter = get_wfc_adapter()
             algorithm_modules = adapter.setup_from_blender_modules(all_modules)
@@ -168,7 +145,7 @@ def clear_all_modules():
     """Clear modules for every loaded category.
 
     Iterates over all keys currently present in ``_modules_by_category`` so
-    that building, outer_grid, and any future category are all covered.
+    all categories are covered.
     Crash-safe: an empty dict or a missing collection is not an error.
     """
     for category in list(_modules_by_category.keys()):
@@ -180,7 +157,6 @@ def clear_all_cells():
     col = bpy.data.collections.get(CollectionNames.Grid.value)
     if col is not None:
         delete_objects_and_meshes(list(col.all_objects))
-    # Note: Grid state is now managed by the adapter, not global variables
 
 class OBJECT_OT_UserPrimitives(bpy.types.Operator):
     """Generate Primitives from User Data"""
@@ -191,6 +167,7 @@ class OBJECT_OT_UserPrimitives(bpy.types.Operator):
         clear_all_primitives()
         return {'FINISHED'}
 
+# TODO: Older method, which uses hardcoded data in py files. To be removed when a better default solution is developed
 class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
     """Generate Default Primitives from Hardcoded Data"""
     bl_idname = "object.add_wfc_primitives"
@@ -202,7 +179,7 @@ class OBJECT_OT_AddWfcPrimitives(bpy.types.Operator):
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWfcPrimitives(bpy.types.Operator):
-    """Clears all primitive in-scene and in-code"""
+    """Clears all primitives in-scene and in-code"""
     bl_idname = "object.clear_wfc_primitives"
     bl_label = "Clear Primitives"
 
@@ -267,6 +244,7 @@ class OBJECT_OT_BuildWfcModules(bpy.types.Operator):
 # ── Module storage (keyed by category) ───────────────────────────────────────
 _modules_by_category: dict = {}
 
+# TODO: Backwards compat still needed? delete if not
 # Backward-compat aliases — these ARE the list objects stored in the dict.
 # Mutate only via .append() / .clear(); never reassign these names.
 # New code should call get_modules_for_category(category) instead.
@@ -310,11 +288,9 @@ def clear_modules_for_category(category: str) -> None:
 def generate_modules_for_category(category: str) -> None:
     """Generate WFC modules for all primitives belonging to *category*.
 
-    This is the single, generic implementation that replaces the former
-    ``generate_modules()`` (outer-grid only) and ``generate_building_modules()``
-    (building only).  Both of those names are kept as one-line backward-compat
-    shims below.
-
+    Args:
+        category: A :class:`~wfc_values.GridCategory` string, e.g.
+            ``'outer_grid'`` or ``'building'``.
     The function:
 
     1. Ensures the category-specific modules collection exists via
@@ -326,9 +302,6 @@ def generate_modules_for_category(category: str) -> None:
     5. Applies queued rotations via ``transform_apply`` after placement.
     6. Builds connector pairs via ``build_module_pairs``.
 
-    Args:
-        category: A :class:`~wfc_values.GridCategory` string, e.g.
-            ``'outer_grid'`` or ``'building'``.
     """
     from .collectiontools import ensure_modules_collection
     modules_collection = ensure_modules_collection(category)
@@ -340,6 +313,7 @@ def generate_modules_for_category(category: str) -> None:
         print(f"[WFC] generate_modules_for_category({category!r}): no primitives found.")
         return
 
+# TODO: Hardcoded starting position/offset for visual display of modules. Find a better solution
     starting_position = Vector((-50, -50, 0))
 
     for i, primitive in enumerate(primitives):
@@ -348,6 +322,7 @@ def generate_modules_for_category(category: str) -> None:
         posY = primitive.y_pos_connector
         negY = primitive.y_neg_connector
 
+        # TODO: Weights should be set in a config. Flow is: User creates/imports a pack -> primitives for each resolution appear in UI (different categories for each resolution) with a weight next to them -> user chooses a resolution for each (default 1.0) -> next collapse operation uses these values.
         default_weight = 1
         if primitive.name == PrimitiveModules.Building.value:
             default_weight = 1.05  # slight bias toward building tiles in outer grid
@@ -471,13 +446,13 @@ def generate_modules_for_all_loaded_categories() -> list:
 
 
 class OBJECT_OT_ClearWfcModules(bpy.types.Operator):
-    """Clear all Module Data and Meshes"""
+    """Clear all Module Data and Meshes. Resets WFC Adapter"""
     bl_idname = "object.clear_wfc_modules"
     bl_label = "Clear Modules"
 
     def execute(self, context):
         clear_all_modules()
-        # NEW: Reset adapter when clearing modules
+        # TODO: Check if this is also resetting primitives
         reset_wfc_adapter()
         return {'FINISHED'}
 
@@ -506,6 +481,8 @@ class OBJECT_OT_HideDebugPlanes(bpy.types.Operator):
         return {'FINISHED'}
 
 class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
+    """Panel for building and clearing grids"""
+    # TODO: Would be good if this incorporated all things to do with grids. Creation/resetting/re-generating/collapsing
     bl_label = "Build Grid"
     bl_idname = "OBJECT_PT_WFCGridPanel"
     bl_space_type = 'VIEW_3D'
@@ -514,11 +491,9 @@ class OBJECT_PT_WFCGridPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        # layout.prop(context.scene, "clear_collections")
         layout.operator("object.build_wfc_grid")
         layout.operator("object.clear_wfc_grid")
 
-        # Debug visualization controls
         layout.separator()
         layout.label(text="Debug Visualization:")
         layout.operator("object.show_debug_planes")
@@ -547,7 +522,6 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
     #     check col exists
 
     def execute(self, context):
-        # NEW: Use adapter to create grid visualization
         clear_all_cells()
         reset_wfc_adapter()
 
@@ -557,8 +531,8 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
 
         adapter = get_wfc_adapter()
 
-        # Setup algorithm modules
         algorithm_modules = adapter.setup_from_blender_modules(all_modules)
+        # TODO: Seems like module pairs are being re-generated on every BuildWFCGrid. Ideally should be done before. Maybe change this to an 'EnsurePairs' function at a later date.
         adapter.build_algorithm_module_pairs(algorithm_modules)
 
         # Create grid and visualization (but don't collapse)
@@ -570,13 +544,12 @@ class OBJECT_OT_BuildWFCGrid(bpy.types.Operator):
         return {'FINISHED'}
 
 class OBJECT_OT_ClearWFCGrid(bpy.types.Operator):
-    """Deletes All Grid Cells and Clears Their Data"""
+    """Deletes All Grid Cells and Clears Their Data. Resets WFC Adapter."""
     bl_idname = "object.clear_wfc_grid"
     bl_label = "Clear Grid"
 
     def execute(self, context):
         clear_all_cells()
-        # NEW: Reset adapter when clearing grid
         reset_wfc_adapter()
         return {'FINISHED'}
 class OBJECT_OT_FullCollapse(bpy.types.Operator):
@@ -585,11 +558,9 @@ class OBJECT_OT_FullCollapse(bpy.types.Operator):
     bl_label = "Full Collapse"
 
     def execute(self, context):
-        # NEW: Use adapter for clean separation
         # TODO: Consider adding progress indicator for large grids
         adapter = get_wfc_adapter()
 
-        # Check if we have modules
         if len(all_modules) == 0:
             self.report({'ERROR'}, "No modules found. Generate modules first.")
             return {'CANCELLED'}

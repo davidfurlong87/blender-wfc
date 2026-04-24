@@ -3,7 +3,7 @@
 # *.blend*
 __pycache__
 *.blend
-*wfc_dev.blend1
+*.blend1
 addons/blender-wfc/wfc_dev.blend
 
 addons/blender-wfc/wfc_dev_mac.blend1

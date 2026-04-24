@@ -4,6 +4,18 @@
 
 **Scope:** Consolidates the genuinely open items from the older roadmap / planning docs and excludes work that has already shipped, been superseded, or is only historical context.
 
+## How to use these roadmap docs
+
+Use the roadmap set in this order:
+
+1. **Start here:** `PROJECT_WIDE_REMAINING_WORK_ROADMAP.md`
+   - authoritative list of what is still open
+   - safest recommended implementation order
+2. **Then:** `PRIMITIVE_PACK_AND_CONNECTOR_ROADMAP.md`
+   - pack / connector-specific history, phase structure, and remaining stretch work
+3. **Then:** `export_to_blend_file_plan.md`
+   - hybrid / blend-specific design notes, historical task breakdown, and detailed validation context
+
 **Status legend:**
 - [ ] planned, not started
 - [/] in progress
@@ -14,14 +26,27 @@
 
 ## 1. High-priority remaining work
 
-### 1.1 Blend-only connector fallback chain
+### 1.1 Blend-only connector fallback hardening and validation
 
-**Why it matters:** Hybrid export already writes `wfc_connectors.json` into the pack `.blend`, but the blend-only load path does not yet read it back. Today, a `.blend` without a usable sidecar JSON loads geometry but not a reconstructed pack-local connector registry.
+**Why it matters:** The core blend-only connector fallback chain is now implemented, but it still needs explicit real-Blender validation and clearer user-facing reporting for malformed embedded data and fallback-path selection.
 
-- [ ] Read `wfc_connectors.json` from the selected `.blend` during blend-only load
-- [ ] If the embedded registry is missing, infer connector names referenced by primitive object properties
-- [ ] If inference is incomplete, fall back to the global default registry and warn clearly
-- [ ] Add focused tests for: embedded registry present / missing / malformed
+**Safest remaining implementation order:**
+
+- [ ] Blender smoke test: load a `.blend` with embedded `wfc_connectors.json` and no sidecar JSON
+- [ ] Blender smoke test: load a `.blend` with no sidecar JSON and no embedded registry; confirm inferred placeholder connectors activate
+- [ ] Blender smoke test: load a `.blend` with malformed embedded `wfc_connectors.json`; confirm fallback to the global registry
+- [ ] Harden operator / Pack UI reporting so the exact fallback path is explicit, especially for malformed embedded connector data
+
+**Validation steps:**
+
+- [ ] Export or prepare a pack `.blend` with a known embedded `wfc_connectors.json`
+- [ ] Temporarily remove or rename the companion `pack.json`
+- [ ] Load the `.blend` directly and confirm the session connector registry contains the embedded connector names
+- [ ] Remove the embedded `wfc_connectors.json` text block and reload the `.blend`
+- [ ] Confirm connector names referenced by primitive object properties are inferred as placeholder definitions
+- [ ] Corrupt the embedded `wfc_connectors.json` payload and reload the `.blend`
+- [ ] Confirm a clear warning is shown and the global connector registry is used
+- [ ] Confirm no stale session connectors survive from a previously loaded pack
 
 ### 1.2 Connector validation on pack load
 
@@ -115,10 +140,11 @@ These are not formal commitments yet, but they are strong candidates for future 
 
 ## Recommended next implementation order
 
-1. [ ] Blend-only connector fallback chain
-2. [ ] Connector validation policy + tests
-3. [ ] End-to-end fresh-scene validation
-4. [ ] Performance / responsiveness improvements
-5. [ ] Connector-aware context filtering
+1. [ ] Blend-only connector fallback Blender smoke tests
+2. [ ] Blend-only connector fallback reporting hardening
+3. [ ] Connector validation policy + tests
+4. [ ] End-to-end fresh-scene validation
+5. [ ] Performance / responsiveness improvements
+6. [ ] Connector-aware context filtering
 
 This order keeps the work focused on **correctness first**, **reliability second**, and **authoring convenience third**.

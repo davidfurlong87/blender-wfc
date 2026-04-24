@@ -6,6 +6,16 @@
 Cross-references:
 - `COLLECTION_SYSTEM_AND_GENERICS_ROADMAP.md` — Phase B3 (connector UI), B4 (physical sizes)
 - `thoughts_on_import_export_system.md` — pack format sketch
+- `PROJECT_WIDE_REMAINING_WORK_ROADMAP.md` — authoritative remaining-work list and safest next-step ordering
+- `export_to_blend_file_plan.md` — detailed hybrid / blend implementation history and validation notes
+
+## How to follow the roadmap set
+
+For the easiest implementation path:
+
+1. Read `PROJECT_WIDE_REMAINING_WORK_ROADMAP.md` first for the current recommended order.
+2. Use this file for pack / connector-specific context and stretch-goal status.
+3. Use `export_to_blend_file_plan.md` when working on hybrid / blend load-save details or Blender validation.
 
 ---
 
@@ -255,7 +265,18 @@ In rough order of value:
 21. - [x] **Merge two packs** — combine primitives and connectors from two JSON files, detecting and resolving connector name conflicts; depends on pack-scoped connector registry (Stage 3 ✅)
 22. - [ ] **Connector-aware context filtering** — restrict the connector dropdown based on what the outer grid has placed adjacent to the current cell; depends on the outer grid collapse system
 23. - [x] **Material pack** — export materials alongside primitives for a fully portable pack; depends on the pack format being finalised (Stage 7 ✅)
-24. - [ ] **Blend-only connector fallback load chain** — read embedded `wfc_connectors.json` from a `.blend` when no usable sidecar JSON is available, then fall back to inferred connector names and finally the global registry if needed
+24. - [/] **Blend-only connector fallback hardening & validation** — the core fallback chain is now implemented; remaining work is the safest follow-through below
+    - [ ] Blender smoke test: load a `.blend` with embedded `wfc_connectors.json` and no sidecar JSON
+    - [ ] Blender smoke test: load a `.blend` with no sidecar JSON and no embedded registry; confirm inferred placeholder connectors activate
+    - [ ] Blender smoke test: load a `.blend` with malformed embedded `wfc_connectors.json`; confirm fallback to the global registry
+    - [ ] Harden operator / Pack UI reporting so the exact fallback path is explicit
+    - [ ] Validation checklist:
+      - [ ] prepare a pack `.blend` with embedded `wfc_connectors.json`
+      - [ ] remove or rename the companion `pack.json`
+      - [ ] confirm the embedded connector names appear in the active session registry
+      - [ ] remove the embedded text block and confirm placeholder inference activates
+      - [ ] corrupt the embedded payload and confirm global-registry fallback with a clear warning
+      - [ ] confirm no stale session connectors survive from a previous pack load
 
 **Authoritative open-items list:** see `PROJECT_WIDE_REMAINING_WORK_ROADMAP.md` in this folder.
 
@@ -312,5 +333,5 @@ Stage 6 (B1, B2, B4)               ✅ done
      |
 Stage 7 (blend pack support)        ✅ done
      |
-Stretch goals (context filtering, connector fallback load chain)   ← next
+Stretch goals (blend fallback smoke tests, reporting hardening, context filtering)   ← next
 ```

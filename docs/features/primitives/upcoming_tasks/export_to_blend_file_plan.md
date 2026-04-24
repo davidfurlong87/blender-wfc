@@ -6,6 +6,14 @@ Goal: support **pack-as-folder** workflows where a pack can be loaded from a
 `.blend` file while still keeping a JSON manifest alongside it for metadata,
 connectors, versioning, and robust fallback behavior.
 
+## How this plan fits with the other roadmaps
+
+Read the docs in this order:
+
+1. `PROJECT_WIDE_REMAINING_WORK_ROADMAP.md` — authoritative remaining work and safest next-step order
+2. `PRIMITIVE_PACK_AND_CONNECTOR_ROADMAP.md` — pack / connector roadmap and stretch-goal status
+3. `export_to_blend_file_plan.md` (this file) — hybrid / blend-specific implementation detail and validation context
+
 ---
 
 ## Recommended on-disk structure
@@ -406,15 +414,16 @@ them across UI operators.
 - `addons/blender-wfc/primitive_adapter.py`
 - `addons/blender-wfc/collectiontools/*`
 
-### Task 6 — Implement connector-registry fallback chain ⚠️ PARTIAL
+### Task 6 — Implement connector-registry fallback chain ⚠️ CORE COMPLETE / VALIDATION REMAINS
 
 **Goal:** make `.blend` loading resilient even without a perfect sidecar JSON.
 
 - [x] load connectors from `pack.json` when available
-- [ ] if missing, attempt to read `wfc_connectors.json` from the imported blend data
-- [ ] if still missing, infer connector names referenced by primitive objects
+- [x] if missing, attempt to read `wfc_connectors.json` from the imported blend data
+- [x] if still missing, infer connector names referenced by primitive objects
 - [x] if pack-local connectors are unavailable, continue in global-registry mode
-- [ ] warn the user clearly about which fallback path was used
+- [ ] warn the user clearly about which fallback path was used in every remaining edge case
+- [ ] Blender smoke-test the embedded / inferred / malformed fallback paths
 
 **Primary files:**
 
@@ -480,14 +489,32 @@ the same active-pack result.
 - `addons/blender-wfc/primitive_ui.py`
 - `addons/blender-wfc/primitive_persistence.py`
 
-### Task 11 — Embed connector-registry fallback into the exported blend ⚠️ PARTIAL
+### Task 11 — Embed connector-registry fallback into the exported blend ⚠️ EXPORT COMPLETE / FOLLOW-THROUGH REMAINS
 
 **Goal:** make standalone blend files more self-contained.
 
 - [x] write a `wfc_connectors.json` text datablock during export
 - [x] define how it is updated on repeated saves
-- [ ] teach the loader to read it when sidecar JSON connectors are unavailable
-- [ ] infer connector names from primitive object properties when both JSON and embedded registry are missing
+- [x] teach the loader to read it when sidecar JSON connectors are unavailable
+- [x] infer connector names from primitive object properties when both JSON and embedded registry are missing
+- [ ] smoke-test embedded / inferred / malformed load paths in Blender
+- [ ] tighten user-facing fallback reporting so the load path is obvious
+
+### Remaining safest-next-step order for blend-side connector fallback
+
+- [ ] Blender smoke test: load a `.blend` with embedded `wfc_connectors.json` and no sidecar JSON
+- [ ] Blender smoke test: load a `.blend` with no sidecar JSON and no embedded registry; confirm inferred placeholder connectors activate
+- [ ] Blender smoke test: load a `.blend` with malformed embedded `wfc_connectors.json`; confirm fallback to the global registry
+- [ ] Harden operator / Pack UI reporting so the exact fallback path is explicit
+
+### Validation checklist for the remaining follow-through
+
+- [ ] prepare a pack `.blend` with embedded `wfc_connectors.json`
+- [ ] remove or rename the companion `pack.json`
+- [ ] load the `.blend` directly and confirm the embedded connector names activate
+- [ ] remove the embedded text block and confirm placeholder inference activates
+- [ ] corrupt the embedded payload and confirm global-registry fallback with a clear warning
+- [ ] confirm no stale session connectors survive from a previous pack load
 
 ### Task 12 — UX polish and migration helpers ✅
 
