@@ -205,6 +205,8 @@ class OBJECT_PT_WFCConnectorRegistryPanel(bpy.types.Panel):
                 # Name + compact compatible-with summary
                 row.label(text=conn.name, icon='SYSTEM')
                 row.label(text=compat)
+                op = row.operator("object.wfc_edit_connector", text="", icon='PREFERENCES')
+                op.connector_name = conn.name
                 op = row.operator("object.wfc_rename_connector", text="", icon='GREASEPENCIL')
                 op.connector_name = conn.name
                 op = row.operator("object.wfc_delete_connector", text="", icon='X')
@@ -890,6 +892,29 @@ def _primitives_using_connector(connector_name: str, category: str) -> list:
         return []
 
 
+def _find_cross_category_primitives(pack_category: str) -> list:
+    """Return ``(object_name, collection_name)`` pairs for mesh objects in any
+    ``WFC_Primitives_*`` collection whose category does not match *pack_category*.
+
+    Used by both save paths to warn the user when scene primitives would be
+    silently excluded from the current export because they live in a sibling
+    WFC category collection.  Returns an empty list on any error so it never
+    blocks a save.
+    """
+    prefix = 'WFC_Primitives_'
+    own_col_name = f'{prefix}{pack_category}'
+    found = []
+    try:
+        for col in bpy.data.collections:
+            if col.name.startswith(prefix) and col.name != own_col_name:
+                for obj in col.objects:
+                    if obj.type == 'MESH':
+                        found.append((obj.name, col.name))
+    except Exception:
+        pass
+    return found
+
+
 # ============================================================================
 # Connector management operators (Stage 5 — P3-A / P3-C)
 # ============================================================================
@@ -942,6 +967,15 @@ class OBJECT_OT_WFCAddConnector(bpy.types.Operator):
             for c in self.compatible_with.split(',')
             if c.strip()
         ]
+        if not compat:
+            self.report(
+                {'ERROR'},
+                "Compatible With cannot be empty — a connector with no matches "
+                "can never pair with anything. Enter at least one connector name "
+                "(use the connector's own name to make it self-compatible).",
+            )
+            return {'CANCELLED'}
+
         new_def = ConnectorDefinition(
             name=name,
             description=self.description.strip(),
@@ -954,6 +988,87 @@ class OBJECT_OT_WFCAddConnector(bpy.types.Operator):
         reg.register(new_def)
         action = "updated" if already_exists else "added"
         self.report({'INFO'}, f"Connector '{name}' {action}")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_WFCEditConnector(bpy.types.Operator):
+    """Edit all fields of an existing connector in the active registry.
+
+    Opens the same dialog as Add Connector, pre-filled with the connector's
+    current values.  The name field is read-only here — use Rename Connector
+    to change a connector's name."""
+    bl_idname = "object.wfc_edit_connector"
+    bl_label = "Edit Connector"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    connector_name: StringProperty()  # type: ignore — the connector being edited
+    description:    StringProperty(name="Description", default="")  # type: ignore
+    compatible_with: StringProperty(
+        name="Compatible With",
+        description="Comma-separated connector names this one can pair with",
+        default="",
+    )  # type: ignore
+    grid_category: EnumProperty(
+        name="Grid Category", items=GRID_CATEGORIES, default='building'
+    )  # type: ignore
+    is_symmetric: BoolProperty(name="Symmetric", default=True)  # type: ignore
+
+    def invoke(self, context, event):
+        from .connector_registry import get_active_registry
+        reg = get_active_registry()
+        cd = reg.get(self.connector_name)
+        if cd is None:
+            self.report({'ERROR'}, f"Connector '{self.connector_name}' not found")
+            return {'CANCELLED'}
+        # Pre-fill with existing values
+        self.description    = cd.description
+        self.compatible_with = ', '.join(cd.compatible_with)
+        self.grid_category  = cd.grid_category
+        self.is_symmetric   = cd.is_symmetric
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context):
+        layout = self.layout
+        # Name is display-only; users must use Rename Connector to change it
+        box = layout.box()
+        box.label(text=f"Editing: {self.connector_name}", icon='SYSTEM')
+        box.label(text="To change the name use the Rename (✏) button.", icon='INFO')
+        layout.prop(self, "description")
+        layout.prop(self, "compatible_with")
+        layout.label(text="Separate multiple names with commas, e.g.  WALL, DOOR", icon='INFO')
+        layout.prop(self, "grid_category")
+        layout.prop(self, "is_symmetric")
+
+    def execute(self, context):
+        from .connector_registry import (
+            ConnectorDefinition, ensure_mutable_session_registry,
+        )
+        compat = [
+            c.strip().upper().replace(' ', '_')
+            for c in self.compatible_with.split(',')
+            if c.strip()
+        ]
+        if not compat:
+            self.report(
+                {'ERROR'},
+                "Compatible With cannot be empty — enter at least one connector name.",
+            )
+            return {'CANCELLED'}
+
+        reg = ensure_mutable_session_registry()
+        if self.connector_name not in reg.connectors:
+            self.report({'ERROR'}, f"Connector '{self.connector_name}' not found in registry")
+            return {'CANCELLED'}
+
+        updated = ConnectorDefinition(
+            name=self.connector_name,
+            description=self.description.strip(),
+            compatible_with=compat,
+            grid_category=self.grid_category,
+            is_symmetric=self.is_symmetric,
+        )
+        reg.register(updated)
+        self.report({'INFO'}, f"Connector '{self.connector_name}' updated")
         return {'FINISHED'}
 
 
@@ -1859,6 +1974,21 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             else:
                 skipped.append(f"{obj.name}: {'; '.join(errors)}")
 
+        # Warn if any mesh objects in OTHER WFC_Primitives_* collections would be
+        # excluded from this export due to a category mismatch.
+        cross = _find_cross_category_primitives(pack['category'])
+        if cross:
+            sample = ', '.join(
+                f"'{n}' (in {c})" for n, c in cross[:3]
+            )
+            suffix = '…' if len(cross) > 3 else ''
+            self.report(
+                {'WARNING'},
+                f"{len(cross)} primitive(s) in other WFC category collection(s) were "
+                f"excluded from this export: {sample}{suffix}. "
+                "Check their Grid Category assignment matches the pack.",
+            )
+
         if not primitives:
             self.report({'ERROR'}, "No complete primitives found — assign type and connectors first")
             return {'CANCELLED'}
@@ -1938,6 +2068,22 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
         # -- 1. Collect primitives ------------------------------------------------
         col = ensure_primitives_collection(pack['category'])
         objects = [o for o in col.objects if o.type == 'MESH']
+
+        # Warn if any mesh objects in OTHER WFC_Primitives_* collections exist
+        # (they will be silently excluded from this blend export).
+        cross = _find_cross_category_primitives(pack['category'])
+        if cross:
+            sample = ', '.join(
+                f"'{n}' (in {c})" for n, c in cross[:3]
+            )
+            suffix = '…' if len(cross) > 3 else ''
+            self.report(
+                {'WARNING'},
+                f"{len(cross)} primitive(s) in other WFC category collection(s) were "
+                f"excluded from this export: {sample}{suffix}. "
+                "Check their Grid Category assignment matches the pack.",
+            )
+
         if not objects:
             self.report({'ERROR'}, "No mesh primitives found in the active pack collection")
             return {'CANCELLED'}
@@ -2493,6 +2639,7 @@ PRIMITIVE_OPERATORS = [
     OBJECT_OT_WFCLoadDefaultConnectors,
     OBJECT_OT_WFCImportConnectorsFromPack,
     OBJECT_OT_WFCAddConnector,
+    OBJECT_OT_WFCEditConnector,
     OBJECT_OT_WFCDeleteConnector,
     OBJECT_OT_WFCRenameConnector,
     # Deprecated

@@ -55,10 +55,9 @@ but is silently excluded from the export. No error is shown.
   (mirrors exactly what the load path already does at line 1481–1486)
 - [ ] **Copy fix** — Apply the same registration step to `OBJECT_OT_WFCCopyConnectors.execute()`:
   re-link each target into `WFC_Primitives_{source.grid_category}` after copying its properties
-- [ ] **Secondary: add a warning** — In `_save_as_blend_file` and `_save_as_json_file`, after
-  collecting objects from `WFC_Primitives_{pack['category']}`, check whether any objects in ALL
-  WFC_Primitives_* collections have a `grid_category` that differs from the pack's category.
-  If so, emit a `{'WARNING'}` report listing them by name so the user knows they were excluded.
+- [x] **Secondary: add a warning** — `_find_cross_category_primitives(pack_category)` helper added;
+  both `_save_as_json_file` and `_save_as_blend_file` call it after collecting their object list
+  and emit a `{'WARNING'}` report listing excluded primitives (up to 3 named) with their collection.
 - [ ] **Regression test** — Extend tests to cover: create object → assign via UI operator → confirm
   object appears in `WFC_Primitives_{category}` collection (mock or otherwise)
 
@@ -98,20 +97,27 @@ this for new packs.
 - [x] Offer "Import from Pack…" button so users can seed from any existing pack
 - [x] Verify no stale connectors from a previously loaded pack survive into a new pack creation
 
-### 0.3 Pack base-size defaults not propagating to new primitive dialog
+### 0.3 Pack base-size defaults not propagating to new primitive dialog ✅
 
 **Source:** New user feedback. User set pack base-size to 4 m but the Assign Connectors dialog
 opened with different defaults.
 
-**Note:** P2-D (pack-wide physical size and resolution) was planned and marked complete, but
-this feedback suggests it is not working correctly.
+**Fix (resolved as a side-effect of the outer_grid_size work in 0.2):**
 
-- [ ] Reproduce: create a pack with non-default size/resolution, then open Assign Connectors on a new object
-- [ ] Confirm whether pack defaults pre-populate the dialog correctly
-- [ ] Fix the dialog to read pack defaults from the active pack state before showing
-- [ ] Verify the fix with both JSON-only and hybrid pack types
+`OBJECT_OT_WFCAssignConnectors.invoke()` was already reading `pack['physical_size']` and
+`pack['resolution_multiplier']` from the active pack state (P2-D was correct). The remaining
+symptom — the info label showing the wrong derived size — was caused by the hardcoded
+`DEFAULT_GRID_SIZES[OUTER_GRID]` reference in `draw()`. This is now replaced with
+`pack['outer_grid_size']`, so the label correctly reflects the user-declared outer grid cell size
+for all resolution levels. All three code paths (field pre-population, info label, and
+`obj.physical_size` assignment in `execute()`) are now consistent.
 
-### 0.4 Blank `compatible_with` allowed on connector creation — and cannot be fixed afterwards
+- [x] Reproduce: create a pack with non-default size/resolution, then open Assign Connectors on a new object
+- [x] Confirm whether pack defaults pre-populate the dialog correctly — they do (P2-D was correct)
+- [x] Fix the dialog to read pack defaults from the active pack state before showing — outer_grid_size now used
+- [x] Verify the fix with both JSON-only and hybrid pack types
+
+### 0.4 Blank `compatible_with` allowed on connector creation — and cannot be fixed afterwards ✅
 
 **Source:** New user feedback.
 
@@ -120,9 +126,17 @@ Two related issues:
   producing a connector that can never match anything and is permanently broken
 - There is no way to edit `compatible_with` after creation; the only workaround is delete and recreate
 
-- [ ] Add validation to the Add Connector operator: block save if `compatible_with` is empty, show a clear error
-- [ ] Add an "Edit Connector" operator or inline edit for `compatible_with` on existing connectors
-- [ ] Confirm rename (P3-C) and delete (P3-A) still work correctly after this change
+**Fix (implemented):**
+- `OBJECT_OT_WFCAddConnector.execute()` now validates the parsed `compat` list and returns
+  `{'CANCELLED'}` with a clear error if it is empty, guiding the user to enter at least one name.
+- `OBJECT_OT_WFCEditConnector` added: pre-fills all editable fields (description, compatible_with,
+  grid_category, is_symmetric) from the existing connector definition. The name is display-only
+  (use Rename for that). An Edit button (⚙ icon) now appears first in each connector row, before
+  Rename and Delete. The same empty-compatible_with validation applies here.
+
+- [x] Add validation to the Add Connector operator: block save if `compatible_with` is empty, show a clear error
+- [x] Add an "Edit Connector" operator or inline edit for `compatible_with` on existing connectors
+- [x] Confirm rename (P3-C) and delete (P3-A) still work correctly after this change
 
 ### 0.5 Save Pack as Blend does not auto-append `.blend`
 
@@ -404,7 +418,7 @@ These block existing core workflows for any new user. No new features should be 
 3. [ ] **0.1c** Secondary warning — exporters should warn when primitives exist in a different category than the pack
 4. [ ] **0.1d** Regression test for the registration flow
 5. [x] **0.2** Connector Registry not blank on new pack creation — fixed and verified
-6. [ ] **0.3** Pack base-size defaults not propagating to new primitive dialog — fixed and verified
+6. [x] **0.3** Pack base-size defaults not propagating to new primitive dialog — fixed and verified
 7. [ ] **0.4** Blank `compatible_with` allowed and cannot be edited — validation added, edit operator added
 8. [x] **0.5** Auto-append `.blend` during pack export when the user omits the extension
 
