@@ -1276,8 +1276,15 @@ class OBJECT_OT_WFCExportToBlend(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
+        # Ensure the filepath always ends with .blend regardless of what the
+        # user typed in the file browser — Blender does not enforce the filter
+        # on the typed filename so the extension can be omitted.
+        path = self.filepath
+        if not path.lower().endswith('.blend'):
+            path = os.path.splitext(path)[0] + '.blend'
+
         # Delegate entirely to the save operator's blend path
-        bpy.ops.object.wfc_save_pack('INVOKE_DEFAULT', filepath=self.filepath)
+        bpy.ops.object.wfc_save_pack('INVOKE_DEFAULT', filepath=path)
         return {'FINISHED'}
 
 
@@ -1686,7 +1693,19 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
         ext = os.path.splitext(self.filepath)[1].lower()
         if ext == '.blend':
             return self._save_as_blend_file(context, pack)
-        return self._save_as_json_file(context, pack)
+        if ext == '.json':
+            return self._save_as_json_file(context, pack)
+
+        # No recognised extension: the user typed a bare filename with no
+        # extension (e.g. "my_pack").  Rather than silently writing a JSON
+        # file with the wrong name, report clearly and cancel so the user
+        # can re-confirm with an explicit extension.
+        self.report(
+            {'ERROR'},
+            f"Please include a file extension: "
+            f"save as 'my_pack.json' or 'my_pack.blend'",
+        )
+        return {'CANCELLED'}
 
     # ── JSON-only save (original path) ───────────────────────────────────────
 
@@ -1772,6 +1791,14 @@ class OBJECT_OT_WFCSavePack(bpy.types.Operator):
             update_active_pack_filepath,
             update_active_pack_blend_filepath,
         )
+
+        # -- 0. Normalise the filepath --------------------------------------------
+        # Blender's file browser does not enforce the filter_glob on typed names,
+        # so a user can omit the extension.  Ensure the path always ends with
+        # '.blend' before any file I/O so that bpy.data.libraries.write, the
+        # companion JSON stem, and the pack state all use the correct path.
+        if not self.filepath.lower().endswith('.blend'):
+            self.filepath = os.path.splitext(self.filepath)[0] + '.blend'
 
         # -- 1. Collect primitives ------------------------------------------------
         col = ensure_primitives_collection(pack['category'])

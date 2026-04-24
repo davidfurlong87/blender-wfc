@@ -120,10 +120,10 @@ the `.blend` extension or the file is not created as expected.
 **Why this belongs in Tier 0:** This is a direct file-save workflow bug in a core user path. It is
 small and low-risk to fix, and the addon should not rely on users to supply the extension manually.
 
-- [ ] Reproduce by exporting a pack to a filepath without `.blend`
-- [ ] Update the export operator so it appends `.blend` automatically when the chosen filepath has no extension
-- [ ] Ensure an existing `.blend` filename is not double-appended
-- [ ] Confirm the stored `blend_filepath` / active-pack filepath uses the final corrected path
+- [x] Reproduce by exporting a pack to a filepath without `.blend`
+- [x] Update the export operator so it appends `.blend` automatically when the chosen filepath has no extension
+- [x] Ensure an existing `.blend` filename is not double-appended
+- [x] Confirm the stored `blend_filepath` / active-pack filepath uses the final corrected path
 - [ ] Add a regression test or explicit Blender validation step for the missing-extension case
 
 ---
@@ -394,7 +394,7 @@ These block existing core workflows for any new user. No new features should be 
 5. [ ] **0.2** Connector Registry not blank on new pack creation — fixed and verified
 6. [ ] **0.3** Pack base-size defaults not propagating to new primitive dialog — fixed and verified
 7. [ ] **0.4** Blank `compatible_with` allowed and cannot be edited — validation added, edit operator added
-8. [ ] **0.5** Auto-append `.blend` during pack export when the user omits the extension
+8. [x] **0.5** Auto-append `.blend` during pack export when the user omits the extension
 
 ### Tier 1 — High-impact UX fixes (bounded changes, low risk)
 
