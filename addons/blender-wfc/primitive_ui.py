@@ -544,6 +544,15 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
         else:
             obj.physical_size = self.physical_size
 
+        # Register the object into the correct WFC primitives collection so the
+        # Pack panel list, JSON save, and blend export can all find it.
+        # This mirrors the load path (primitive_ui.py lines ~1481-1486) which
+        # already calls link_object_to_single_collection after creating objects.
+        from .collectiontools import ensure_primitives_collection
+        from .collectiontools.collection_creation import link_object_to_single_collection
+        wfc_col = ensure_primitives_collection(self.grid_category)
+        link_object_to_single_collection(obj, wfc_col)
+
         self.report({'INFO'}, f"Assigned connectors and metadata to {obj.name}")
         context.view_layer.update()
         return {'FINISHED'}
@@ -580,6 +589,9 @@ class OBJECT_OT_WFCCopyConnectors(bpy.types.Operator):
             self.report({'WARNING'}, "No other mesh objects selected — select the targets then Shift-click the active")
             return {'CANCELLED'}
 
+        from .collectiontools import ensure_primitives_collection
+        from .collectiontools.collection_creation import link_object_to_single_collection
+
         for obj in targets:
             obj.primitive_type         = source.primitive_type
             obj.x_pos_connector        = source.x_pos_connector
@@ -590,6 +602,11 @@ class OBJECT_OT_WFCCopyConnectors(bpy.types.Operator):
             obj.grid_category          = source.grid_category
             obj.resolution_multiplier  = source.resolution_multiplier
             obj.rotation_invariant     = source.rotation_invariant
+
+            # Register each target into the correct WFC collection so the Pack
+            # panel, save, and export flows can find it (mirrors AssignConnectors fix).
+            wfc_col = ensure_primitives_collection(source.grid_category)
+            link_object_to_single_collection(obj, wfc_col)
 
         self.report({'INFO'}, f"Copied type & connectors to {len(targets)} object(s)")
         return {'FINISHED'}

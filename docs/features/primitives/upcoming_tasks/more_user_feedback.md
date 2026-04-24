@@ -1,16 +1,10 @@
-## Creating packs
-- 'Save to JSON' only saves a single primitive, there is no way of grouping a bunch of my primitives together and forming a pack.
-- I would like the idea of a "pack" to be the default working unit. I should be able to create a new pack, and then create primitives within that pack. If I've imported a pack, I should be able to see all the primitives in that pack, and be able to create new primitives within that pack.
-- There is no way of renaming/deleting a primitive once it has been created. The only way is to delete the JSON file manually.
-- There is no way of knowing which primitives are in which pack. You have to open the JSON file to see.
-- When creating a custom type, the name is auto-capitalised 
-- Physical size isn’t updated when updating the resolution multiplier metadata. Also, there seems to be no way of setting a "pack-wide" physical size. I.e. if I want by base outer-grid primitives to be 2m, I seem to have no way of doing this
-
-## Connector system
-- Need system for adding new connectors. Current system is tightly bound to the connector_registry.py file
-- No interaction between primitive creation and connector_registry. The design should be that a connector registry is specific to a particular pack
-- Add feature to update primitive/connector names. Spelling mistakes become permanent  at the moment
-- Quick-copy system for connectors. “Copy Type/Connectors from active”
-- Alphabetise connectors. Or categorise them. Or allow the user to define both which inner grid system they connect to, plus which outer grid cell. Code already identifies where inner grid buildings would be, could use this to “tell” a building plot what it’s surrounded by
-
-
+- Pack asks me for a grid category when creating. A pack should have several different categories within it, one of which may be an outer grid, another may be an inner grid etc
+- I set my base-size for the pack as 4m, but when creating a new primitive and editing its metadata it assumed different dimensions and resolutions completely. Is the UI correctly updating its metadata expectations when beginning a new pack.
+- Not clear from the UI how different grid resolutions all fit together into the same overall pack
+- Connector Registry starts with a bunch of other connectors from other packs. Might be useful as an optional import, but I’d like the option to start with a blank canvas.
+- UI displays all current connectors, but doesn’t let me update their compatible pairs. I can only delete and recreate.
+- The ‘compatible With’ field is free text entry, rather than a drop down list. This can lead to me adding compatibility with non-existent connectors.
+- The ‘compatible With’ field can be left blank when creating a new connector, leaving a connector which is compatible with nothing and is useless. It also can’t be edited out of this state.
+- Unclear what ‘Grid Category’ refers to when adding a connector. It would be very good to be able to mark a connector as ‘only available in resolution 1/2’ or ‘available in all resolutions’.
+- The export to blend failed with the error ‘No mesh primitives found in the active pack collection’. I think that when assigning a type and metadata to a mesh it doesn’t register as a primitive in the backend. Or the backend is hardcoded to look at the physical collections in blender. I’m not sure.
+- When building a grid I am locked in to a 10x10 outer grid. I want to set this in the UI
