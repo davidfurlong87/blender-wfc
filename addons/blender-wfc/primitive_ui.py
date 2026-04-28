@@ -456,14 +456,33 @@ class OBJECT_OT_WFCAssignConnectors(bpy.types.Operator):
     ) # type: ignore
 
     def invoke(self, context, event):
+        from .connector_registry import get_active_registry
         obj = context.object
 
-        # Pre-populate connectors with existing values if already assigned
+        # Block early if no connectors are defined — the enum dropdowns would
+        # be empty/useless and assigning a placeholder connector corrupts data.
+        if not get_active_registry().connectors:
+            self.report(
+                {'ERROR'},
+                "No connectors defined for this pack. "
+                "Open the Connector Registry panel and add at least one connector first.",
+            )
+            return {'CANCELLED'}
+
+        # Pre-populate connectors with existing values if already assigned.
+        # Guard each assignment: if the stored value no longer exists in the
+        # current registry (e.g. the user switched packs), skip it silently
+        # rather than crashing with a TypeError.
         if obj and has_connectors_assigned(obj):
-            self.pos_x = obj.x_pos_connector
-            self.neg_x = obj.x_neg_connector
-            self.pos_y = obj.y_pos_connector
-            self.neg_y = obj.y_neg_connector
+            valid = {item[0] for item in get_connector_enum_items()}
+            if obj.x_pos_connector in valid:
+                self.pos_x = obj.x_pos_connector
+            if obj.x_neg_connector in valid:
+                self.neg_x = obj.x_neg_connector
+            if obj.y_pos_connector in valid:
+                self.pos_y = obj.y_pos_connector
+            if obj.y_neg_connector in valid:
+                self.neg_y = obj.y_neg_connector
 
         if obj:
             # If the object already has category metadata, use it directly.

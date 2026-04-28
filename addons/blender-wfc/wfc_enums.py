@@ -51,7 +51,7 @@ def get_connector_enum_items(self=None, context=None):
         List of (identifier, name, description) tuples for Blender EnumProperty
     """
     try:
-        from .connector_registry import get_active_registry
+        from .connector_registry import get_active_registry, is_session_registry_set
         active = get_active_registry()
         items = sorted(
             [
@@ -62,10 +62,18 @@ def get_connector_enum_items(self=None, context=None):
         )
         if items:
             return items
+
+        # A session registry is explicitly active but has no connectors yet
+        # (e.g. a brand-new pack).  Return a placeholder instead of falling
+        # back to the global hardcoded defaults, which belong to a completely
+        # different pack and would be deeply confusing.
+        if is_session_registry_set():
+            return [('NONE', '(no connectors — add one first)', '')]
+
     except (ImportError, SystemError):
         pass
 
-    # Fallback: return the hardcoded defaults
+    # No session override at all: fall back to the global hardcoded defaults.
     return CONNECTORS
 
 def _build_grid_categories() -> list:

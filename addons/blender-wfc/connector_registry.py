@@ -362,6 +362,17 @@ def clear_session_registry() -> None:
     _session_registry = None
 
 
+def is_session_registry_set() -> bool:
+    """Return ``True`` if a session registry is explicitly active.
+
+    A session registry is considered set even when it is empty (i.e. a new
+    pack was created with a blank connector slate).  This lets callers
+    distinguish "no pack loaded — fall back to global defaults" from
+    "pack loaded with zero connectors — show empty / placeholder UI".
+    """
+    return _session_registry is not None
+
+
 def ensure_mutable_session_registry() -> ConnectorRegistry:
     """Return a session registry that is safe to mutate.
 
